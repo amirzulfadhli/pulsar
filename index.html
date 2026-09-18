@@ -1,0 +1,690 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Pulsar is a visual CSS generator. V1 begins with a focused Button generator."
+    />
+    <title>Pulsar — Visual CSS Generator</title>
+
+    <style>
+      :root {
+        color-scheme: light;
+        --canvas: #f7f7f5;
+        --surface: #ffffff;
+        --surface-subtle: #fafaf9;
+        --ink: #18181b;
+        --ink-muted: #71717a;
+        --line: #e4e4e7;
+        --line-strong: #d4d4d8;
+        --accent: #4f46e5;
+        --focus: #2563eb;
+        --code-bg: #18181b;
+        --code-ink: #e4e4e7;
+        --code-muted: #a1a1aa;
+        --radius-sm: 6px;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        background: var(--canvas);
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        color: var(--ink);
+        background: var(--canvas);
+        font-family:
+          Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button,
+      input[type="color"],
+      input[type="range"] {
+        cursor: pointer;
+      }
+
+      :focus-visible {
+        outline: 3px solid var(--focus);
+        outline-offset: 3px;
+      }
+
+      .app-shell {
+        display: grid;
+        grid-template-columns: minmax(260px, 300px) minmax(360px, 1fr) minmax(300px, 360px);
+        min-height: 100vh;
+        background: var(--surface);
+      }
+
+      .panel {
+        min-width: 0;
+      }
+
+      .controls-panel,
+      .output-panel {
+        display: flex;
+        flex-direction: column;
+        background: var(--surface-subtle);
+      }
+
+      .controls-panel {
+        border-right: 1px solid var(--line);
+      }
+
+      .output-panel {
+        border-left: 1px solid var(--line);
+      }
+
+      .panel-header {
+        min-height: 84px;
+        padding: 21px 24px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 0 0 4px;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+
+      .brand-mark {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px #e0e7ff;
+      }
+
+      .eyebrow {
+        margin: 0 0 4px;
+        color: var(--ink-muted);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .panel-title {
+        margin: 0;
+        font-size: 17px;
+        font-weight: 650;
+        letter-spacing: -0.02em;
+      }
+
+      .panel-description {
+        margin: 3px 0 0;
+        color: var(--ink-muted);
+        font-size: 12px;
+      }
+
+      .controls-form {
+        display: grid;
+        gap: 0;
+        padding: 8px 24px 28px;
+      }
+
+      .control-group {
+        padding: 17px 0 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .control-group:last-child {
+        border-bottom: 0;
+      }
+
+      .control-heading {
+        margin: 0 0 12px;
+        color: var(--ink-muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .field {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 9px 14px;
+      }
+
+      .field + .field {
+        margin-top: 15px;
+      }
+
+      .field label {
+        font-size: 13px;
+        font-weight: 550;
+      }
+
+      .field-output {
+        min-width: 45px;
+        color: var(--ink-muted);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 11px;
+        text-align: right;
+      }
+
+      input[type="range"] {
+        grid-column: 1 / -1;
+        width: 100%;
+        height: 4px;
+        margin: 2px 0 0;
+        border-radius: 999px;
+        accent-color: var(--accent);
+      }
+
+      input[type="color"] {
+        width: 36px;
+        height: 28px;
+        padding: 3px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+      }
+
+      input[type="color"]::-webkit-color-swatch-wrapper {
+        padding: 0;
+      }
+
+      input[type="color"]::-webkit-color-swatch {
+        border: 0;
+        border-radius: 3px;
+      }
+
+      .color-value {
+        min-width: 66px;
+        color: var(--ink-muted);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 11px;
+        text-align: right;
+      }
+
+      .preview-panel {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        min-height: 100vh;
+        background-color: var(--surface);
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+
+      .preview-panel .panel-header {
+        background: color-mix(in srgb, var(--surface) 94%, transparent);
+        backdrop-filter: blur(8px);
+      }
+
+      .preview-stage {
+        display: grid;
+        place-items: center;
+        min-height: 440px;
+        padding: 72px 56px;
+      }
+
+      .generated-button {
+        border-style: solid;
+      }
+
+      .preview-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 13px 20px;
+        border-top: 1px solid var(--line);
+        color: var(--ink-muted);
+        background: color-mix(in srgb, var(--surface) 94%, transparent);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 10px;
+        letter-spacing: 0.03em;
+      }
+
+      .status-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 7px;
+        border-radius: 50%;
+        background: #16a34a;
+      }
+
+      .output-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .output-toolbar-label {
+        color: var(--ink-muted);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 11px;
+      }
+
+      .copy-button {
+        padding: 7px 12px;
+        border: 1px solid var(--line-strong);
+        border-radius: var(--radius-sm);
+        color: var(--ink);
+        background: var(--surface);
+        font-size: 12px;
+        font-weight: 650;
+      }
+
+      .copy-button:hover {
+        border-color: #a1a1aa;
+        background: #f4f4f5;
+      }
+
+      .code-block {
+        flex: 1;
+        margin: 0;
+        padding: 26px 22px;
+        overflow: auto;
+        color: var(--code-ink);
+        background: var(--code-bg);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        line-height: 1.8;
+        tab-size: 2;
+        white-space: pre;
+      }
+
+      .output-status {
+        min-height: 45px;
+        margin: 0;
+        padding: 13px 20px;
+        border-top: 1px solid #27272a;
+        color: var(--code-muted);
+        background: var(--code-bg);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 10px;
+      }
+
+      @media (max-width: 1040px) {
+        .app-shell {
+          grid-template-columns: minmax(240px, 280px) minmax(340px, 1fr);
+        }
+
+        .output-panel {
+          grid-column: 1 / -1;
+          min-height: 420px;
+          border-top: 1px solid var(--line);
+          border-left: 0;
+        }
+      }
+
+      @media (max-width: 700px) {
+        .app-shell {
+          display: block;
+        }
+
+        .controls-panel,
+        .output-panel {
+          border: 0;
+        }
+
+        .controls-panel,
+        .preview-panel,
+        .output-panel {
+          min-height: auto;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .preview-stage {
+          min-height: 420px;
+          padding: 64px 24px;
+        }
+
+        .code-block {
+          min-height: 330px;
+        }
+      }
+
+    </style>
+  </head>
+
+  <body>
+    <main class="app-shell">
+      <aside class="panel controls-panel" aria-labelledby="controls-title">
+        <header class="panel-header">
+          <h1 class="brand"><span class="brand-mark" aria-hidden="true"></span>Pulsar</h1>
+          <p class="eyebrow">Button generator</p>
+          <h2 class="panel-title" id="controls-title">Controls</h2>
+        </header>
+
+        <form class="controls-form">
+          <section class="control-group" aria-labelledby="typography-heading">
+            <h3 class="control-heading" id="typography-heading">Typography</h3>
+            <div class="field">
+              <label for="font-size">Font size</label>
+              <output class="field-output" id="font-size-output" for="font-size">16px</output>
+              <input id="font-size" name="fontSize" type="range" min="10" max="32" value="16" />
+            </div>
+          </section>
+
+          <section class="control-group" aria-labelledby="spacing-heading">
+            <h3 class="control-heading" id="spacing-heading">Spacing</h3>
+            <div class="field">
+              <label for="vertical-padding">Vertical padding</label>
+              <output class="field-output" id="vertical-padding-output" for="vertical-padding">12px</output>
+              <input id="vertical-padding" name="verticalPadding" type="range" min="4" max="32" value="12" />
+            </div>
+            <div class="field">
+              <label for="horizontal-padding">Horizontal padding</label>
+              <output class="field-output" id="horizontal-padding-output" for="horizontal-padding">24px</output>
+              <input id="horizontal-padding" name="horizontalPadding" type="range" min="8" max="64" value="24" />
+            </div>
+          </section>
+
+          <section class="control-group" aria-labelledby="shape-heading">
+            <h3 class="control-heading" id="shape-heading">Shape</h3>
+            <div class="field">
+              <label for="border-radius">Border radius</label>
+              <output class="field-output" id="border-radius-output" for="border-radius">8px</output>
+              <input id="border-radius" name="borderRadius" type="range" min="0" max="32" value="8" />
+            </div>
+            <div class="field">
+              <label for="border-width">Border width</label>
+              <output class="field-output" id="border-width-output" for="border-width">1px</output>
+              <input id="border-width" name="borderWidth" type="range" min="0" max="8" value="1" />
+            </div>
+          </section>
+
+          <section class="control-group" aria-labelledby="color-heading">
+            <h3 class="control-heading" id="color-heading">Color</h3>
+            <div class="field">
+              <label for="background-color">Background color</label>
+              <span class="color-value" id="background-color-output">#4F46E5</span>
+              <input id="background-color" name="backgroundColor" type="color" value="#4f46e5" />
+            </div>
+            <div class="field">
+              <label for="text-color">Text color</label>
+              <span class="color-value" id="text-color-output">#FFFFFF</span>
+              <input id="text-color" name="textColor" type="color" value="#ffffff" />
+            </div>
+            <div class="field">
+              <label for="border-color">Border color</label>
+              <span class="color-value" id="border-color-output">#4338CA</span>
+              <input id="border-color" name="borderColor" type="color" value="#4338ca" />
+            </div>
+          </section>
+        </form>
+      </aside>
+
+      <section class="panel preview-panel" aria-labelledby="preview-title">
+        <header class="panel-header">
+          <p class="eyebrow">Canvas</p>
+          <h2 class="panel-title" id="preview-title">Preview</h2>
+          <p class="panel-description">A focused view of the generated element.</p>
+        </header>
+
+        <div class="preview-stage">
+          <button class="generated-button" type="button">Button label</button>
+        </div>
+
+        <footer class="preview-footer">
+          <span><span class="status-dot" aria-hidden="true"></span>Ready</span>
+          <span>100%</span>
+        </footer>
+      </section>
+
+      <section class="panel output-panel" aria-labelledby="output-title">
+        <header class="panel-header">
+          <p class="eyebrow">Generated code</p>
+          <h2 class="panel-title" id="output-title">CSS Output</h2>
+          <p class="panel-description">Clean CSS, ready for your project.</p>
+        </header>
+
+        <div class="output-toolbar">
+          <span class="output-toolbar-label">button.css</span>
+          <button class="copy-button" id="copy-css" type="button">Copy CSS</button>
+        </div>
+
+        <pre class="code-block" tabindex="0" aria-label="Generated CSS"><code id="generated-css"></code></pre>
+
+        <p class="output-status" id="copy-status" role="status" aria-live="polite">CSS ready to copy.</p>
+      </section>
+    </main>
+
+    <script>
+      const state = {
+        fontSize: 16,
+        verticalPadding: 12,
+        horizontalPadding: 24,
+        borderRadius: 8,
+        backgroundColor: "#4f46e5",
+        textColor: "#ffffff",
+        borderWidth: 1,
+        borderColor: "#4338ca",
+      };
+
+      const numericControls = {
+        fontSize: {
+          input: document.getElementById("font-size"),
+          output: document.getElementById("font-size-output"),
+          min: 10,
+          max: 32,
+        },
+        verticalPadding: {
+          input: document.getElementById("vertical-padding"),
+          output: document.getElementById("vertical-padding-output"),
+          min: 4,
+          max: 32,
+        },
+        horizontalPadding: {
+          input: document.getElementById("horizontal-padding"),
+          output: document.getElementById("horizontal-padding-output"),
+          min: 8,
+          max: 64,
+        },
+        borderRadius: {
+          input: document.getElementById("border-radius"),
+          output: document.getElementById("border-radius-output"),
+          min: 0,
+          max: 32,
+        },
+        borderWidth: {
+          input: document.getElementById("border-width"),
+          output: document.getElementById("border-width-output"),
+          min: 0,
+          max: 8,
+        },
+      };
+
+      const colorControls = {
+        backgroundColor: {
+          input: document.getElementById("background-color"),
+          output: document.getElementById("background-color-output"),
+        },
+        textColor: {
+          input: document.getElementById("text-color"),
+          output: document.getElementById("text-color-output"),
+        },
+        borderColor: {
+          input: document.getElementById("border-color"),
+          output: document.getElementById("border-color-output"),
+        },
+      };
+
+      const previewButton = document.querySelector(".generated-button");
+      const generatedCode = document.getElementById("generated-css");
+      const copyButton = document.getElementById("copy-css");
+      const copyStatus = document.getElementById("copy-status");
+      let generatedCSS = "";
+      let latestCopyAttempt = 0;
+
+      function normalizeNumber(value, minimum, maximum, fallback) {
+        if (value === "" || value === null || value === undefined) {
+          return fallback;
+        }
+
+        const number = Number(value);
+
+        if (!Number.isFinite(number)) {
+          return fallback;
+        }
+
+        return Math.min(maximum, Math.max(minimum, number));
+      }
+
+      function normalizeColor(value, fallback) {
+        const color = String(value).trim().toLowerCase();
+        return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
+      }
+
+      function generateCSS(currentState) {
+        return `.button {
+  font-size: ${currentState.fontSize}px;
+  padding: ${currentState.verticalPadding}px ${currentState.horizontalPadding}px;
+  border-radius: ${currentState.borderRadius}px;
+  background-color: ${currentState.backgroundColor};
+  color: ${currentState.textColor};
+  border: ${currentState.borderWidth}px solid ${currentState.borderColor};
+}`;
+      }
+
+      function render() {
+        previewButton.style.fontSize = `${state.fontSize}px`;
+        previewButton.style.padding = `${state.verticalPadding}px ${state.horizontalPadding}px`;
+        previewButton.style.borderRadius = `${state.borderRadius}px`;
+        previewButton.style.backgroundColor = state.backgroundColor;
+        previewButton.style.color = state.textColor;
+        previewButton.style.borderWidth = `${state.borderWidth}px`;
+        previewButton.style.borderColor = state.borderColor;
+        previewButton.style.borderStyle = "solid";
+
+        Object.entries(numericControls).forEach(([property, control]) => {
+          control.output.textContent = `${state[property]}px`;
+        });
+
+        Object.entries(colorControls).forEach(([property, control]) => {
+          control.output.textContent = state[property].toUpperCase();
+        });
+
+        generatedCSS = generateCSS(state);
+        generatedCode.textContent = generatedCSS;
+      }
+
+      function initializeControls() {
+        Object.entries(numericControls).forEach(([property, control]) => {
+          control.input.value = state[property];
+          control.input.addEventListener("input", (event) => {
+            const normalizedValue = normalizeNumber(
+              event.currentTarget.value,
+              control.min,
+              control.max,
+              state[property],
+            );
+
+            state[property] = normalizedValue;
+            event.currentTarget.value = normalizedValue;
+            render();
+          });
+        });
+
+        Object.entries(colorControls).forEach(([property, control]) => {
+          control.input.value = state[property];
+          control.input.addEventListener("input", (event) => {
+            const normalizedValue = normalizeColor(
+              event.currentTarget.value,
+              state[property],
+            );
+
+            state[property] = normalizedValue;
+            event.currentTarget.value = normalizedValue;
+            render();
+          });
+        });
+      }
+
+      function copyWithFallback(text) {
+        if (typeof document.execCommand !== "function") {
+          return false;
+        }
+
+        const temporaryTextArea = document.createElement("textarea");
+        temporaryTextArea.value = text;
+        temporaryTextArea.setAttribute("readonly", "");
+        temporaryTextArea.style.position = "fixed";
+        temporaryTextArea.style.opacity = "0";
+        temporaryTextArea.style.pointerEvents = "none";
+        document.body.appendChild(temporaryTextArea);
+
+        try {
+          temporaryTextArea.select();
+          return document.execCommand("copy");
+        } catch {
+          return false;
+        } finally {
+          temporaryTextArea.remove();
+          copyButton.focus();
+        }
+      }
+
+      async function copyCurrentCSS() {
+        const attempt = ++latestCopyAttempt;
+        const cssToCopy = generatedCSS;
+        let copied = false;
+
+        try {
+          if (
+            typeof navigator !== "undefined" &&
+            navigator.clipboard &&
+            typeof navigator.clipboard.writeText === "function"
+          ) {
+            await navigator.clipboard.writeText(cssToCopy);
+            copied = true;
+          }
+        } catch {
+          copied = false;
+        }
+
+        if (!copied) {
+          try {
+            copied = copyWithFallback(cssToCopy);
+          } catch {
+            copied = false;
+          }
+        }
+
+        if (attempt === latestCopyAttempt) {
+          copyStatus.textContent = copied
+            ? "CSS copied"
+            : "Couldn't copy — select the CSS manually";
+        }
+      }
+
+      initializeControls();
+      render();
+      copyButton.addEventListener("click", copyCurrentCSS);
+    </script>
+  </body>
+</html>
