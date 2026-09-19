@@ -1,34 +1,49 @@
 # Pulsar
 
-Pulsar is a visual CSS generator — adjust properties, see the result live, and copy the CSS immediately.
+Pulsar is a focused visual CSS generator for adjusting common component properties, evaluating the result live, and copying deterministic CSS into another project.
 
-## What it is
+## Overview
 
-Pulsar is a focused workspace for visually building CSS without losing sight of the code. Controls feed a live preview and readable CSS output from the same configuration.
+The interface combines generator-specific controls, a spacious preview, and readable CSS output in one continuous workspace. Button and Card retain independent state for the current browser session, so switching generators does not discard in-progress changes.
 
-## V1
+## Current generators
 
-Pulsar V1 introduces the Button generator. It provides a polished foundation for shaping a button and taking the resulting CSS into another project.
+### Button
+
+Configure font size, vertical padding, horizontal padding, border radius, background color, text color, border width, and border color.
+
+### Card
+
+Configure width, padding, border radius, background color, text color, border width, and border color. Generated Card CSS includes `box-sizing: border-box` and `max-width: 100%` so configured widths remain practical in narrower containers.
 
 ## Features
 
-- Live controls for font size, padding, radius, background, text, and border
-- Preview and generated CSS kept in sync through one state object
-- One-click CSS copying with accessible success and failure feedback
-- Responsive three-panel interface with keyboard-visible focus
-- No dependencies, framework, build step, storage, or network requirement
+- Live preview and real-time CSS generation from the same normalized state
+- Native Button/Card selector with independent in-session generator state
+- Deterministic, copy-ready CSS output with the active filename
+- One-click copy using the Clipboard API with a resilient fallback
+- Responsive three-panel workspace that stacks cleanly at narrower widths
+- Keyboard-accessible controls, visible focus indicators, and polite copy feedback
+- Zero runtime or test dependencies, with no framework or build step
 
-## How it works
+Pulsar does not persist settings between page loads.
 
-`Controls → State → Preview + CSS`
+## Architecture
 
-Every control update is normalized into one state object. The preview and CSS output are then rendered from that same state, so they cannot drift apart.
+```text
+Controls
+→ active generator state
+→ preview + generated CSS
+→ shared clipboard
+```
 
-## Running locally
+A small `generatorDefinitions` dispatch table connects each generator to its controls, preview renderer, CSS generator, and output filename. Normalization, active rendering, generator switching, output, and clipboard behavior remain shared.
 
-Open `index.html` directly for the simplest setup.
+## Usage
 
-For the most reliable Clipboard API behavior, serve the directory through localhost with any basic static server. Python is one dependency-free option for the project itself:
+Open `index.html` directly—there is no install or build step.
+
+For the most reliable Clipboard API behavior, serve the directory from localhost with any basic static server. For example:
 
 ```sh
 python -m http.server 8000
@@ -36,16 +51,23 @@ python -m http.server 8000
 
 Then open `http://localhost:8000`.
 
-## Stack
+Optional regression tests use Node.js built-ins only:
+
+```sh
+node tests/regression.cjs
+```
+
+## Tech
 
 - HTML
 - CSS
-- JavaScript
+- Vanilla JavaScript
+- Node.js built-ins for optional regression tests
+
+## Status
+
+**Pulsar V2 — Button + Card**
 
 ## Roadmap
 
-Future releases may explore additional generators such as Cards, Inputs, and Grids. These are possibilities, not features included in V1.
-
-## Project status
-
-Pulsar V1 — Button Generator is complete.
+Potential future areas include an Input generator, Card shadow controls, Grid, and additional focused CSS generators.
