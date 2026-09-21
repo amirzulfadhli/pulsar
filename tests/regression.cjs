@@ -13,7 +13,11 @@ class MockElement {
     this.id = id;
     this.value = "";
     this.textContent = "";
-    this.style = {};
+    this.style = {
+      setProperty(property, value) {
+        this[property] = value;
+      },
+    };
     this.listeners = {};
     this.removed = false;
     this.focused = false;
@@ -64,7 +68,19 @@ const ids = [
   "card-background-color", "card-background-color-output",
   "card-text-color", "card-text-color-output",
   "card-border-color", "card-border-color-output",
-  "generator-name", "generator-button", "generator-card",
+  "input-font-size", "input-font-size-output",
+  "input-vertical-padding", "input-vertical-padding-output",
+  "input-horizontal-padding", "input-horizontal-padding-output",
+  "input-border-radius", "input-border-radius-output",
+  "input-border-width", "input-border-width-output",
+  "input-background-color", "input-background-color-output",
+  "input-text-color", "input-text-color-output",
+  "input-border-color", "input-border-color-output",
+  "input-focus-border-color", "input-focus-border-color-output",
+  "input-focus-outline-width", "input-focus-outline-width-output",
+  "input-focus-outline-color", "input-focus-outline-color-output",
+  "input-focus-outline-offset", "input-focus-outline-offset-output",
+  "generator-name", "generator-button", "generator-card", "generator-input",
   "generated-css", "copy-css", "copy-status",
 ];
 
@@ -73,16 +89,40 @@ elements["copy-status"].textContent = "CSS ready to copy.";
 elements["generator-button"].value = "button";
 elements["generator-button"].checked = true;
 elements["generator-card"].value = "card";
+elements["generator-input"].value = "input";
+const inputBaseControlIds = [
+  "input-font-size",
+  "input-vertical-padding",
+  "input-horizontal-padding",
+  "input-border-radius",
+  "input-border-width",
+  "input-background-color",
+  "input-text-color",
+  "input-border-color",
+];
+const inputFocusControlIds = [
+  "input-focus-border-color",
+  "input-focus-outline-width",
+  "input-focus-outline-color",
+  "input-focus-outline-offset",
+];
 const preview = new MockElement("preview");
 preview.dataset.generatorPreview = "button";
 const cardPreview = new MockElement("card-preview");
 cardPreview.dataset.generatorPreview = "card";
 cardPreview.hidden = true;
+const inputPreview = new MockElement("input-preview");
+inputPreview.dataset.generatorPreview = "input";
+inputPreview.hidden = true;
+const inputPreviewControl = new MockElement("generated-input");
 const buttonControlView = new MockElement("button-controls");
 buttonControlView.dataset.generatorControls = "button";
 const cardControlView = new MockElement("card-controls");
 cardControlView.dataset.generatorControls = "card";
 cardControlView.hidden = true;
+const inputControlView = new MockElement("input-controls");
+inputControlView.dataset.generatorControls = "input";
+inputControlView.hidden = true;
 const outputFilename = new MockElement("output-filename");
 const temporaryElements = [];
 const fallbackWrites = [];
@@ -94,18 +134,19 @@ const document = {
   querySelector(selector) {
     if (selector === ".generated-button") return preview;
     if (selector === ".generated-card") return cardPreview;
+    if (selector === ".generated-input") return inputPreviewControl;
     if (selector === ".output-toolbar-label") return outputFilename;
     throw new Error(`Unexpected selector: ${selector}`);
   },
   querySelectorAll(selector) {
     if (selector === 'input[name="generator"]') {
-      return [elements["generator-button"], elements["generator-card"]];
+      return [elements["generator-button"], elements["generator-card"], elements["generator-input"]];
     }
     if (selector === "[data-generator-controls]") {
-      return [buttonControlView, cardControlView];
+      return [buttonControlView, cardControlView, inputControlView];
     }
     if (selector === "[data-generator-preview]") {
-      return [preview, cardPreview];
+      return [preview, cardPreview, inputPreview];
     }
     throw new Error(`Unexpected selector: ${selector}`);
   },
@@ -138,6 +179,10 @@ vm.runInContext(
     generateButtonCSS,
     renderCardPreview,
     generateCardCSS,
+    renderInputPreview,
+    generateInputCSS,
+    inputNumericControls,
+    inputColorControls,
     switchGenerator,
     generatedCSS: () => generatedCSS,
   };`,
@@ -195,6 +240,25 @@ function expectedCardCSS(state) {
 }`;
 }
 
+function expectedInputCSS(state) {
+  return `.input {
+  box-sizing: border-box;
+  font: inherit;
+  font-size: ${state.fontSize}px;
+  padding: ${state.verticalPadding}px ${state.horizontalPadding}px;
+  border-radius: ${state.borderRadius}px;
+  background-color: ${state.backgroundColor};
+  color: ${state.textColor};
+  border: ${state.borderWidth}px solid ${state.borderColor};
+}
+
+.input:focus {
+  border-color: ${state.focusBorderColor};
+  outline: ${state.focusOutlineWidth}px solid ${state.focusOutlineColor};
+  outline-offset: ${state.focusOutlineOffset}px;
+}`;
+}
+
 function checkButtonSynchronization(label) {
   const state = context.testApi.state.generators.button;
   const generatedCSS = context.testApi.generatedCSS();
@@ -233,10 +297,33 @@ function checkCardSynchronization(label) {
   check(elements["generated-css"].textContent === generatedCSS, `${label}: displayed Card CSS is authoritative`);
 }
 
+function checkInputSynchronization(label) {
+  const inputState = context.testApi.state.generators.input;
+  const generatedCSS = context.testApi.generatedCSS();
+  const previewMatches =
+    inputPreviewControl.style["--input-font-size"] === `${inputState.fontSize}px` &&
+    inputPreviewControl.style["--input-padding-y"] === `${inputState.verticalPadding}px` &&
+    inputPreviewControl.style["--input-padding-x"] === `${inputState.horizontalPadding}px` &&
+    inputPreviewControl.style["--input-border-radius"] === `${inputState.borderRadius}px` &&
+    inputPreviewControl.style["--input-background-color"] === inputState.backgroundColor &&
+    inputPreviewControl.style["--input-text-color"] === inputState.textColor &&
+    inputPreviewControl.style["--input-border-width"] === `${inputState.borderWidth}px` &&
+    inputPreviewControl.style["--input-border-color"] === inputState.borderColor &&
+    inputPreviewControl.style["--input-focus-border-color"] === inputState.focusBorderColor &&
+    inputPreviewControl.style["--input-focus-outline-width"] === `${inputState.focusOutlineWidth}px` &&
+    inputPreviewControl.style["--input-focus-outline-color"] === inputState.focusOutlineColor &&
+    inputPreviewControl.style["--input-focus-outline-offset"] === `${inputState.focusOutlineOffset}px`;
+
+  check(previewMatches, `${label}: Input preview variables match state`);
+  check(generatedCSS === expectedInputCSS(inputState), `${label}: Input CSS matches state exactly`);
+  check(elements["generated-css"].textContent === generatedCSS, `${label}: displayed Input CSS is authoritative`);
+}
+
 async function run() {
   const rootState = context.testApi.state;
   const buttonState = rootState.generators.button;
   const cardState = rootState.generators.card;
+  const inputState = rootState.generators.input;
   const copyButton = elements["copy-css"];
   const copyStatus = elements["copy-status"];
 
@@ -265,14 +352,31 @@ async function run() {
     }),
     "all seven Card defaults are correct",
   );
+  check(
+    JSON.stringify(inputState) === JSON.stringify({
+      fontSize: 16,
+      verticalPadding: 10,
+      horizontalPadding: 14,
+      borderRadius: 6,
+      backgroundColor: "#ffffff",
+      textColor: "#18181b",
+      borderWidth: 1,
+      borderColor: "#d4d4d8",
+      focusBorderColor: "#4f46e5",
+      focusOutlineWidth: 3,
+      focusOutlineColor: "#2563eb",
+      focusOutlineOffset: 2,
+    }),
+    "all twelve Input defaults are correct",
+  );
   check(rootState.activeGenerator === "button", "Button is the default active generator");
   check(
-    JSON.stringify(Object.keys(rootState.generators)) === JSON.stringify(["button", "card"]),
-    "state contains independent Button and Card generators",
+    JSON.stringify(Object.keys(rootState.generators)) === JSON.stringify(["button", "card", "input"]),
+    "state contains independent Button, Card, and Input generators",
   );
   check(
-    JSON.stringify(Object.keys(context.testApi.generatorDefinitions)) === JSON.stringify(["button", "card"]),
-    "dispatch table contains Button and Card definitions",
+    JSON.stringify(Object.keys(context.testApi.generatorDefinitions)) === JSON.stringify(["button", "card", "input"]),
+    "dispatch table contains Button, Card, and Input definitions",
   );
   check(
     context.testApi.generatorDefinitions.button.renderPreview === context.testApi.renderButtonPreview &&
@@ -555,9 +659,410 @@ async function run() {
   elements["generator-card"].change(true);
   checkCardSynchronization("Card after rapid generator switching");
 
-  const inputIds = [...html.matchAll(/<input\b[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
+  check(
+    context.testApi.generatorDefinitions.input.renderPreview === context.testApi.renderInputPreview &&
+      context.testApi.generatorDefinitions.input.generateCSS === context.testApi.generateInputCSS,
+    "Input definition owns its preview and CSS functions",
+  );
+  check(
+    context.testApi.generatorDefinitions.input.numericControls === context.testApi.inputNumericControls &&
+      context.testApi.generatorDefinitions.input.colorControls === context.testApi.inputColorControls &&
+      context.testApi.generatorDefinitions.input.outputFilename === "input.css",
+    "Input definition owns its Base controls and output metadata",
+  );
+
+  const pendingCardToInput = deferred();
+  setClipboard(() => pendingCardToInput.promise);
+  const pendingCardToInputCopy = copyButton.click();
+  elements["generator-card"].checked = false;
+  elements["generator-input"].change(true);
+  check(rootState.activeGenerator === "input", "Input radio activates the functional generator");
+  check(
+    buttonControlView.hidden && cardControlView.hidden && !inputControlView.hidden,
+    "Input controls replace Button and Card controls",
+  );
+  check(
+    preview.hidden && cardPreview.hidden && !inputPreview.hidden,
+    "Input preview replaces Button and Card previews",
+  );
+  check(elements["generator-name"].textContent === "Input generator", "Input mode updates the generator label");
+  check(outputFilename.textContent === "input.css", "Input definition supplies the output filename");
+  check(!copyButton.disabled, "Copy is enabled in Input mode");
+  check(copyStatus.textContent === "CSS ready to copy.", "Input mode reports normal ready feedback");
+  checkInputSynchronization("Input defaults");
+  check(
+    context.testApi.generatedCSS() === `.input {
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background-color: #ffffff;
+  color: #18181b;
+  border: 1px solid #d4d4d8;
+}
+
+.input:focus {
+  border-color: #4f46e5;
+  outline: 3px solid #2563eb;
+  outline-offset: 2px;
+}`,
+    "default Input Base and focus CSS have exact deterministic formatting",
+  );
+  check(
+    (context.testApi.generatedCSS().match(/\.input\s*\{/g) || []).length === 1 &&
+      (context.testApi.generatedCSS().match(/\.input:focus\s*\{/g) || []).length === 1 &&
+      !/focus-visible|\bwidth\s*:|max-width|placeholder|--input-|shadow|transition|outline:\s*none/.test(context.testApi.generatedCSS()),
+    "Input CSS has one Base rule, one focus rule, and no forbidden output",
+  );
+  pendingCardToInput.resolve();
+  await pendingCardToInputCopy;
+  check(copyStatus.textContent === "CSS ready to copy.", "pending Card copy cannot overwrite Input feedback");
+
+  const inputNumericCases = [
+    ["input-font-size", "fontSize", 10, 32],
+    ["input-vertical-padding", "verticalPadding", 4, 32],
+    ["input-horizontal-padding", "horizontalPadding", 8, 64],
+    ["input-border-radius", "borderRadius", 0, 32],
+    ["input-border-width", "borderWidth", 0, 8],
+    ["input-focus-outline-width", "focusOutlineWidth", 1, 6],
+    ["input-focus-outline-offset", "focusOutlineOffset", 0, 8],
+  ];
+
+  for (const [id, property, minimum, maximum] of inputNumericCases) {
+    elements[id].input(String(minimum));
+    check(inputState[property] === minimum, `Input ${property} accepts its minimum`);
+    checkInputSynchronization(`Input ${property} minimum`);
+
+    elements[id].input(String(maximum));
+    check(inputState[property] === maximum, `Input ${property} accepts its maximum`);
+    checkInputSynchronization(`Input ${property} maximum`);
+
+    const previous = inputState[property];
+    elements[id].input("");
+    check(inputState[property] === previous, `Input ${property} rejects an empty value`);
+    elements[id].input("malformed");
+    check(inputState[property] === previous, `Input ${property} rejects a malformed value`);
+    elements[id].input("Infinity");
+    check(inputState[property] === previous, `Input ${property} rejects a non-finite value`);
+    elements[id].input(String(minimum - 100));
+    check(inputState[property] === minimum, `Input ${property} clamps below its minimum`);
+    elements[id].input("-1");
+    check(inputState[property] === minimum, `Input ${property} clamps negative values`);
+    elements[id].input(String(maximum + 100));
+    check(inputState[property] === maximum, `Input ${property} clamps above its maximum`);
+    checkInputSynchronization(`Input ${property} normalization`);
+  }
+
+  elements["input-focus-outline-width"].input("0");
+  check(inputState.focusOutlineWidth === 1, "Input focus outline width clamps zero to one");
+  checkInputSynchronization("Input focus outline width zero clamp");
+
+  const inputColorCases = [
+    ["input-background-color", "backgroundColor", "#102030"],
+    ["input-text-color", "textColor", "#abcdef"],
+    ["input-border-color", "borderColor", "#fedcba"],
+    ["input-focus-border-color", "focusBorderColor", "#654321"],
+    ["input-focus-outline-color", "focusOutlineColor", "#123456"],
+  ];
+
+  for (const [id, property, color] of inputColorCases) {
+    elements[id].input(color.toUpperCase());
+    check(inputState[property] === color, `Input ${property} normalizes a valid color`);
+    checkInputSynchronization(`Input ${property} valid color`);
+    elements[id].input("invalid");
+    check(inputState[property] === color, `Input ${property} preserves the previous valid color`);
+    checkInputSynchronization(`Input ${property} invalid color`);
+  }
+
+  for (let value = 10; value <= 32; value += 1) {
+    elements["input-font-size"].input(String(value));
+  }
+  check(inputState.fontSize === 32, "rapid Input updates retain the final value");
+  checkInputSynchronization("rapid Input updates");
+
+  const inputCollectionIds = [
+    ...Object.values(context.testApi.inputNumericControls),
+    ...Object.values(context.testApi.inputColorControls),
+  ].map((control) => control.input.id);
+  inputFocusControlIds.forEach((id) => {
+    check(!elements[id].disabled, `${id} is enabled`);
+    check(Boolean(elements[id].listeners.input), `${id} is wired through shared controls`);
+    check(inputCollectionIds.includes(id), `${id} belongs to the existing Input collections`);
+  });
+  check(
+    JSON.stringify(Object.keys(inputState)) === JSON.stringify([
+      "fontSize",
+      "verticalPadding",
+      "horizontalPadding",
+      "borderRadius",
+      "backgroundColor",
+      "textColor",
+      "borderWidth",
+      "borderColor",
+      "focusBorderColor",
+      "focusOutlineWidth",
+      "focusOutlineColor",
+      "focusOutlineOffset",
+    ]),
+    "Input state contains exactly twelve flat configurable properties",
+  );
+
+  const preservedInputState = JSON.stringify(inputState);
+  const preservedInputCSS = context.testApi.generatedCSS();
+  const preservedInputPreview = JSON.stringify(inputPreviewControl.style);
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  check(clipboardCalls.at(-1) === preservedInputCSS, "modern API copies exact Input CSS");
+  check(copyStatus.textContent === "CSS copied", "Input copy reports success");
+
+  const delayedInputToButton = deferred();
+  setClipboard(() => delayedInputToButton.promise);
+  const delayedInputToButtonCopy = copyButton.click();
+  elements["generator-input"].checked = false;
+  elements["generator-button"].change(true);
+  delayedInputToButton.resolve();
+  await delayedInputToButtonCopy;
+  check(copyStatus.textContent === "CSS ready to copy.", "pending Input success cannot overwrite Button feedback");
+  check(JSON.stringify(buttonState) === preservedButtonState, "Button state survives Input modifications");
+  check(context.testApi.generatedCSS() === preservedButtonCSS, "Button CSS survives Input modifications");
+  checkButtonSynchronization("Button restored from functional Input");
+
+  const pendingButtonToInput = deferred();
+  setClipboard(() => pendingButtonToInput.promise);
+  const pendingButtonToInputCopy = copyButton.click();
+  elements["generator-button"].checked = false;
+  elements["generator-input"].change(true);
+  pendingButtonToInput.resolve();
+  await pendingButtonToInputCopy;
+  check(copyStatus.textContent === "CSS ready to copy.", "pending Button copy cannot overwrite Input feedback");
+  check(JSON.stringify(inputState) === preservedInputState, "Input state survives Button switching");
+  check(context.testApi.generatedCSS() === preservedInputCSS, "Input CSS survives Button switching");
+  check(JSON.stringify(inputPreviewControl.style) === preservedInputPreview, "Input preview survives Button switching");
+  checkInputSynchronization("Input restored from Button");
+
+  const delayedInputToCard = deferred();
+  setClipboard(() => delayedInputToCard.promise);
+  const delayedInputToCardCopy = copyButton.click();
+  elements["generator-input"].checked = false;
+  elements["generator-card"].change(true);
+  delayedInputToCard.reject(new Error("late Input failure"));
+  await delayedInputToCardCopy;
+  check(copyStatus.textContent === "CSS ready to copy.", "pending Input failure cannot overwrite Card feedback");
+  check(JSON.stringify(cardState) === preservedCardState, "Card state survives Input modifications");
+  check(context.testApi.generatedCSS() === preservedCardCSS, "Card CSS survives Input modifications");
+  checkCardSynchronization("Card restored from functional Input");
+
+  for (let iteration = 0; iteration < 3; iteration += 1) {
+    elements["generator-card"].checked = false;
+    elements["generator-input"].change(true);
+    elements["generator-input"].checked = false;
+    elements["generator-button"].change(true);
+    elements["generator-button"].checked = false;
+    elements["generator-card"].change(true);
+  }
+  check(rootState.activeGenerator === "card", "rapid three-generator switching ends in Card mode");
+  checkCardSynchronization("rapid three-generator switching");
+
+  const generatorRadios = {
+    button: elements["generator-button"],
+    card: elements["generator-card"],
+    input: elements["generator-input"],
+  };
+  const controlViews = {
+    button: buttonControlView,
+    card: cardControlView,
+    input: inputControlView,
+  };
+  const previewViews = {
+    button: preview,
+    card: cardPreview,
+    input: inputPreview,
+  };
+  const expectedFilenames = {
+    button: "button.css",
+    card: "card.css",
+    input: "input.css",
+  };
+  const expectedGenerators = {
+    button: expectedButtonCSS,
+    card: expectedCardCSS,
+    input: expectedInputCSS,
+  };
+
+  function selectTestGenerator(generatorName) {
+    Object.values(generatorRadios).forEach((radio) => { radio.checked = false; });
+    generatorRadios[generatorName].change(true);
+  }
+
+  function checkActiveConsistency(generatorName, label) {
+    const expectedCSS = expectedGenerators[generatorName](rootState.generators[generatorName]);
+    check(rootState.activeGenerator === generatorName, `${label}: active generator is synchronized`);
+    check(
+      Object.entries(controlViews).filter(([, view]) => !view.hidden).map(([name]) => name).join() === generatorName,
+      `${label}: exactly one matching controls view is active`,
+    );
+    check(
+      Object.entries(previewViews).filter(([, view]) => !view.hidden).map(([name]) => name).join() === generatorName,
+      `${label}: exactly one matching preview view is active`,
+    );
+    check(outputFilename.textContent === expectedFilenames[generatorName], `${label}: filename is synchronized`);
+    check(context.testApi.generatedCSS() === expectedCSS, `${label}: authoritative CSS is synchronized`);
+    check(elements["generated-css"].textContent === expectedCSS, `${label}: visible CSS is synchronized`);
+    check(copyStatus.textContent === "CSS ready to copy.", `${label}: status is reset truthfully`);
+  }
+
+  elements["font-size"].input("10");
+  elements["vertical-padding"].input("32");
+  elements["horizontal-padding"].input("64");
+  elements["border-radius"].input("0");
+  elements["border-width"].input("8");
+  const boundaryButtonState = JSON.stringify(buttonState);
+  const cardBeforeButtonInvalid = JSON.stringify(cardState);
+  const inputBeforeButtonInvalid = JSON.stringify(inputState);
+  elements["font-size"].input("invalid");
+  check(JSON.stringify(cardState) === cardBeforeButtonInvalid, "invalid Button input cannot affect Card state");
+  check(JSON.stringify(inputState) === inputBeforeButtonInvalid, "invalid Button input cannot affect Input state");
+  selectTestGenerator("card");
+  selectTestGenerator("input");
+  selectTestGenerator("button");
+  check(JSON.stringify(buttonState) === boundaryButtonState, "Button boundary state survives Card and Input switching");
+  checkActiveConsistency("button", "Button boundary restoration");
+
+  selectTestGenerator("card");
+  elements["card-width"].input("160");
+  elements["card-padding"].input("64");
+  elements["card-border-radius"].input("48");
+  elements["card-border-width"].input("12");
+  const minimumWidthCardState = JSON.stringify(cardState);
+  selectTestGenerator("input");
+  selectTestGenerator("button");
+  selectTestGenerator("card");
+  check(JSON.stringify(cardState) === minimumWidthCardState, "Card 160px boundary survives switching");
+  elements["card-width"].input("640");
+  const maximumWidthCardState = JSON.stringify(cardState);
+  selectTestGenerator("button");
+  selectTestGenerator("input");
+  selectTestGenerator("card");
+  check(JSON.stringify(cardState) === maximumWidthCardState, "Card 640px boundary survives switching");
+  checkActiveConsistency("card", "Card boundary restoration");
+
+  selectTestGenerator("input");
+  const inputMinimumValues = [
+    ["input-font-size", "10"],
+    ["input-vertical-padding", "4"],
+    ["input-horizontal-padding", "8"],
+    ["input-border-radius", "0"],
+    ["input-border-width", "0"],
+    ["input-focus-outline-width", "1"],
+    ["input-focus-outline-offset", "0"],
+  ];
+  inputMinimumValues.forEach(([id, value]) => elements[id].input(value));
+  elements["input-border-color"].input("#334155");
+  elements["input-focus-border-color"].input("#dc2626");
+  check(
+    context.testApi.generatedCSS().includes("border: 0px solid #334155;") &&
+      context.testApi.generatedCSS().includes("border-color: #dc2626;"),
+    "zero Input border width preserves an independent focus border color",
+  );
+  elements["input-border-color"].input("#dc2626");
+  check(
+    context.testApi.generatedCSS().includes("border: 0px solid #dc2626;") &&
+      context.testApi.generatedCSS().includes("border-color: #dc2626;"),
+    "equal Input Base and focus border colors remain truthful",
+  );
+  const minimumInputState = JSON.stringify(inputState);
+  selectTestGenerator("button");
+  selectTestGenerator("card");
+  selectTestGenerator("input");
+  check(JSON.stringify(inputState) === minimumInputState, "Input minimum Base and focus state survives switching");
+  checkInputSynchronization("Input minimum boundary restoration");
+
+  const inputMaximumValues = [
+    ["input-font-size", "32"],
+    ["input-vertical-padding", "32"],
+    ["input-horizontal-padding", "64"],
+    ["input-border-radius", "32"],
+    ["input-border-width", "8"],
+    ["input-focus-outline-width", "6"],
+    ["input-focus-outline-offset", "8"],
+  ];
+  inputMaximumValues.forEach(([id, value]) => elements[id].input(value));
+  elements["input-border-color"].input("#111111");
+  elements["input-focus-border-color"].input("#ff0000");
+  elements["input-focus-outline-color"].input("#00ff00");
+  const maximumInputState = JSON.stringify(inputState);
+  const maximumInputCSS = context.testApi.generatedCSS();
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    selectTestGenerator("button");
+    checkActiveConsistency("button", `rapid boundary switch ${iteration} Button`);
+    selectTestGenerator("card");
+    checkActiveConsistency("card", `rapid boundary switch ${iteration} Card`);
+    selectTestGenerator("input");
+    checkActiveConsistency("input", `rapid boundary switch ${iteration} Input`);
+  }
+  check(JSON.stringify(inputState) === maximumInputState, "Input maximum Base and focus state survives rapid switching");
+  check(context.testApi.generatedCSS() === maximumInputCSS, "Input maximum CSS survives rapid switching");
+  checkInputSynchronization("Input maximum boundary restoration");
+
+  const clipboardPairs = [
+    ["button", "card"],
+    ["button", "input"],
+    ["card", "button"],
+    ["card", "input"],
+    ["input", "button"],
+    ["input", "card"],
+  ];
+
+  for (const [source, destination] of clipboardPairs) {
+    selectTestGenerator(source);
+    const sourceCSS = context.testApi.generatedCSS();
+    const success = deferred();
+    setClipboard(() => success.promise);
+    const pendingSuccess = copyButton.click();
+    selectTestGenerator(destination);
+    success.resolve();
+    await pendingSuccess;
+    check(clipboardCalls.at(-1) === sourceCSS, `${source} to ${destination}: pending success uses source CSS`);
+    check(copyStatus.textContent === "CSS ready to copy.", `${source} to ${destination}: stale success cannot replace feedback`);
+
+    selectTestGenerator(source);
+    const failure = deferred();
+    fallbackResult = false;
+    setClipboard(() => failure.promise);
+    const pendingFailure = copyButton.click();
+    selectTestGenerator(destination);
+    failure.reject(new Error(`${source} delayed failure`));
+    await pendingFailure;
+    check(copyStatus.textContent === "CSS ready to copy.", `${source} to ${destination}: stale failure cannot replace feedback`);
+    checkActiveConsistency(destination, `${source} to ${destination} race destination`);
+  }
+
+  for (const generatorName of ["button", "card", "input"]) {
+    selectTestGenerator(generatorName);
+    const currentCSS = context.testApi.generatedCSS();
+    setClipboard(() => Promise.resolve());
+    await copyButton.click();
+    await copyButton.click();
+    await copyButton.click();
+    check(clipboardCalls.at(-1) === currentCSS, `${generatorName}: repeated copies use current CSS`);
+    check(copyStatus.textContent === "CSS copied", `${generatorName}: repeated copies report success`);
+
+    navigator.clipboard = undefined;
+    fallbackResult = true;
+    await copyButton.click();
+    check(fallbackWrites.at(-1) === currentCSS, `${generatorName}: fallback copies current CSS`);
+    check(temporaryElements.at(-1).removed, `${generatorName}: fallback cleans up its temporary element`);
+    check(copyButton.focused, `${generatorName}: fallback restores Copy focus`);
+
+    fallbackResult = false;
+    await copyButton.click();
+    check(copyStatus.textContent.includes("select the CSS manually"), `${generatorName}: fallback failure is truthful`);
+  }
+
+  const markupInputIds = [...html.matchAll(/<input\b[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
   const labelTargets = [...html.matchAll(/<label\b[^>]*\bfor="([^"]+)"/g)].map((match) => match[1]);
-  const buttonControlIds = inputIds.filter((id) =>
+  const buttonControlIds = markupInputIds.filter((id) =>
     [
       "font-size",
       "vertical-padding",
@@ -569,17 +1074,20 @@ async function run() {
       "border-color",
     ].includes(id),
   );
-  const cardControlIds = inputIds.filter((id) => id.startsWith("card-"));
-  check(inputIds.length === 17, "markup contains two selector radios and fifteen property controls");
-  check(labelTargets.length === 17, "markup contains a label for every radio and property control");
+  const cardControlIds = markupInputIds.filter((id) => id.startsWith("card-"));
+  const inputControlIds = markupInputIds.filter((id) => id.startsWith("input-"));
+  check(markupInputIds.length === 31, "markup contains three radios, twenty-seven property controls, and one preview input");
+  check(labelTargets.length === 31, "markup contains a label for every radio, property control, and preview input");
   check(buttonControlIds.length === 8, "Button view retains exactly eight controls");
   check(cardControlIds.length === 7, "Card view contains exactly seven controls");
-  check(inputIds.every((id) => labelTargets.includes(id)), "every control has an associated label");
+  check(inputControlIds.length === 12, "Input generator contains exactly twelve controls");
+  check(markupInputIds.every((id) => labelTargets.includes(id)), "every control has an associated label");
   check(
     html.includes('<fieldset class="generator-selector">') &&
       /id="generator-button"[\s\S]*?type="radio"[\s\S]*?value="button"[\s\S]*?checked/.test(html) &&
-      /id="generator-card"[\s\S]*?type="radio"[\s\S]*?value="card"/.test(html),
-    "generator selector uses a labelled native radio fieldset with Button selected",
+      /id="generator-card"[\s\S]*?type="radio"[\s\S]*?value="card"/.test(html) &&
+      /id="generator-input"[\s\S]*?type="radio"[\s\S]*?value="input"/.test(html),
+    "generator selector uses three labelled native radios with Button selected",
   );
   check(
     cardControlIds.every((id) => {
@@ -589,9 +1097,66 @@ async function run() {
     "all Card property controls are enabled",
   );
   check(
+    (html.match(/<input\b[^>]*\bname="generator"[^>]*>/g) || []).length === 3,
+    "markup contains exactly three generator radios",
+  );
+  check(
+    inputBaseControlIds.every((id) => {
+      const input = html.match(new RegExp(`<input[^>]*id="${id}"[^>]*>`))?.[0] || "";
+      return !/\bdisabled\b/.test(input);
+    }),
+    "all eight Input Base controls are enabled in markup",
+  );
+  check(
+    inputFocusControlIds.every((id) => {
+      const input = html.match(new RegExp(`<input[^>]*id="${id}"[^>]*>`))?.[0] || "";
+      return !/\bdisabled\b/.test(input);
+    }),
+    "all four Input Focus controls are enabled in markup",
+  );
+  const expectedInputDefaults = {
+    "input-font-size": ["16", "16px"],
+    "input-vertical-padding": ["10", "10px"],
+    "input-horizontal-padding": ["14", "14px"],
+    "input-border-radius": ["6", "6px"],
+    "input-border-width": ["1", "1px"],
+    "input-background-color": ["#ffffff", "#FFFFFF"],
+    "input-text-color": ["#18181b", "#18181B"],
+    "input-border-color": ["#d4d4d8", "#D4D4D8"],
+    "input-focus-border-color": ["#4f46e5", "#4F46E5"],
+    "input-focus-outline-width": ["3", "3px"],
+    "input-focus-outline-color": ["#2563eb", "#2563EB"],
+    "input-focus-outline-offset": ["2", "2px"],
+  };
+  check(
+    Object.entries(expectedInputDefaults).every(([id, [value, display]]) => {
+      const input = html.match(new RegExp(`<input[^>]*id="${id}"[^>]*>`))?.[0] || "";
+      const output = html.match(new RegExp(`id="${id}-output"[^>]*>${display.replace("#", "#")}</`));
+      return input.includes(`value="${value}"`) && Boolean(output);
+    }),
+    "all twelve Input controls expose the planned default and display values",
+  );
+  check(
+    ["Typography", "Spacing", "Shape", "Color", "Focus"].every((heading) =>
+      new RegExp(`<h3[^>]*>${heading}</h3>`).test(html),
+    ),
+    "Input generator uses the five required visible sections",
+  );
+  check(
     html.includes('data-generator-controls="card" hidden') &&
       html.includes('data-generator-preview="card" hidden'),
     "Card controls and preview start hidden",
+  );
+  check(
+    html.includes('data-generator-controls="input" hidden') &&
+      html.includes('data-generator-preview="input" hidden'),
+    "Input controls and preview start hidden",
+  );
+  check(
+    /<label[^>]*for="generated-input"[^>]*>Email address<\/label>/.test(html) &&
+      /<input[\s\S]*?id="generated-input"[\s\S]*?type="text"[\s\S]*?placeholder="name@example.com"[\s\S]*?>/.test(html) &&
+      !/<input[^>]*id="generated-input"[^>]*\bdisabled\b/.test(html),
+    "Input preview is a visible-labelled, native, editable text input",
   );
   check((html.match(/<h1\b/g) || []).length === 1, "markup contains one h1");
   check(
@@ -606,6 +1171,27 @@ async function run() {
   check(!/<script>([\s\S]*?)<\/script>/.test(html), "inline script was removed");
   check(css.includes(":focus-visible"), "focus-visible styling remains extracted");
   check(css.includes(".generator-input:focus-visible + label"), "generator focus is visibly styled");
+  check(
+    /\.generator-options\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/.test(css),
+    "selector layout accommodates three equal options",
+  );
+  check(
+    /\.generated-input-preview\s*\{[\s\S]*?width:\s*min\(360px, 100%\)/.test(css),
+    "Input preview width is responsive",
+  );
+  check(
+    /\.generated-input\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?font:\s*inherit;/.test(css) &&
+      css.includes("padding: var(--input-padding-y) var(--input-padding-x);") &&
+      css.includes("border: var(--input-border-width) solid var(--input-border-color);") &&
+      css.includes("background-color: var(--input-background-color);") &&
+      css.includes("color: var(--input-text-color);") &&
+      css.includes("font-size: var(--input-font-size);"),
+    "Input preview consumes Base state through CSS custom properties",
+  );
+  check(
+    /\.generated-input:focus\s*\{[\s\S]*?border-color:\s*var\(--input-focus-border-color\);[\s\S]*?outline:\s*var\(--input-focus-outline-width\) solid var\(--input-focus-outline-color\);[\s\S]*?outline-offset:\s*var\(--input-focus-outline-offset\);/.test(css),
+    "native Input focus consumes all four configurable focus variables",
+  );
   check(css.includes("[hidden]"), "hidden generator views have an explicit layout safeguard");
   check(
     /\.preview-stage\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);[\s\S]*?min-width:\s*0;/.test(css),
@@ -619,17 +1205,85 @@ async function run() {
     "script has no network or storage behavior",
   );
   check(!/(\beval\s*\(|\bFunction\s*\()/.test(script), "script has no dynamic code execution");
-  check(!/CARD_OUTPUT_PLACEHOLDER|coming in Task 4/.test(script + html), "Task 3 placeholder behavior is removed");
-  check(!/(inputState|gridState)/.test(script), "later generator state is absent");
+  check(
+    !/INPUT_OUTPUT_PLACEHOLDER|Input generator coming in Task 3|Input CSS generation is coming in Task 3/.test(script + html),
+    "Task 2 Input placeholder and unavailable behavior are removed",
+  );
+  check(
+    /input:\s*\{[\s\S]*?numericControls:\s*inputNumericControls,[\s\S]*?colorControls:\s*inputColorControls,[\s\S]*?renderPreview:\s*renderInputPreview,[\s\S]*?generateCSS:\s*generateInputCSS,[\s\S]*?outputFilename:\s*"input\.css"/.test(script),
+    "Input participates in the normal generator definition table",
+  );
+  check(
+    /function renderInputPreview\(inputState\)/.test(script) &&
+      /function generateInputCSS\(inputState\)/.test(script) &&
+      /initializeGeneratorControls\(["']input["']\)/.test(script),
+    "Input Base and focus rendering, CSS generation, and shared control wiring are present",
+  );
+  check(
+    /(focusBorderColor|focusOutlineWidth|focusOutlineColor|focusOutlineOffset)/.test(script) &&
+      /--input-focus-border-color|--input-focus-outline-width|--input-focus-outline-color|--input-focus-outline-offset/.test(script + css) &&
+      /\.input:focus/.test(script),
+    "Input focus state, preview variables, and generated focus CSS are present",
+  );
+  check(
+    !/previewInput\.style\.(?:fontSize|padding|borderRadius|backgroundColor|color|borderWidth|borderColor|outline|outlineOffset)/.test(script),
+    "Input preview avoids ordinary inline Base and focus properties",
+  );
+  check(
+    !/(focusControls|pseudoControls|stateDefinitions|interactionSchemas|CSSStyleSheet|\.is-focused|addEventListener\(["']focus)/.test(script),
+    "focus support adds no pseudo-state framework, synthetic class, or focus listener",
+  );
+  const expectedInputPreviewVariables = [
+    "--input-font-size",
+    "--input-padding-y",
+    "--input-padding-x",
+    "--input-border-radius",
+    "--input-background-color",
+    "--input-text-color",
+    "--input-border-width",
+    "--input-border-color",
+    "--input-focus-border-color",
+    "--input-focus-outline-width",
+    "--input-focus-outline-color",
+    "--input-focus-outline-offset",
+  ];
+  const renderedInputPreviewVariables = [
+    ...script.matchAll(/previewInput\.style\.setProperty\("([^"]+)"/g),
+  ].map((match) => match[1]);
+  check(
+    JSON.stringify(renderedInputPreviewVariables) === JSON.stringify(expectedInputPreviewVariables),
+    "Input preview defines exactly the twelve necessary custom-property mappings",
+  );
+  check(
+    expectedInputPreviewVariables.every((property) => css.includes(`var(${property})`)),
+    "every Input preview custom property is consumed by preview CSS",
+  );
   check(!/(https?:\/\/|<link[^>]+(?:cdn|fonts))/i.test(html), "markup has no external runtime dependency");
   check(!fs.existsSync(path.join(root, "package.json")), "repository has no package tooling");
-  check(readme.includes("## Overview"), "README includes a V2 overview");
+  check(readme.includes("## Overview"), "README includes a current overview");
   check(readme.includes("## Current generators"), "README documents current generators");
-  check(readme.includes("### Button") && readme.includes("### Card"), "README documents Button and Card");
+  check(
+    readme.includes("### Button") && readme.includes("### Card") && readme.includes("### Input"),
+    "README documents Button, Card, and Input",
+  );
   check(readme.includes("## Architecture"), "README explains the generator architecture");
   check(readme.includes("## Usage") && readme.includes("node tests/regression.cjs"), "README documents usage and tests");
-  check(readme.includes("**Pulsar V2 — Button + Card**"), "README reports the released V2 status");
-  check(!/Pulsar V1|Cards, Inputs/.test(readme), "README contains no stale Button-only release claims");
+  check(readme.includes("**Pulsar V3 — Interactive Input**"), "README reports the final V3 release status");
+  check(
+    readme.includes("Base typography") &&
+      readme.includes("Focus border color") &&
+      readme.includes("native input") &&
+      readme.includes("`.input`") &&
+      readme.includes("`.input:focus`"),
+    "README explains Input Base controls, Focus controls, native focus, and both output rules",
+  );
+  check(!/Pulsar V1|Pulsar V2|future areas include an Input generator/.test(readme), "README contains no stale pre-Input claims");
+  check(
+    html.includes(
+      'content="Pulsar is a focused visual CSS generator for building Button, Card, and Input styles."',
+    ),
+    "Page metadata identifies all three stabilized generators",
+  );
 
   if (failures.length > 0) {
     console.error(`FAIL: ${failures.length} of ${checkCount} checks failed`);

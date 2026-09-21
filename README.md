@@ -1,10 +1,10 @@
 # Pulsar
 
-Pulsar is a focused visual CSS generator for adjusting common component properties, evaluating the result live, and copying deterministic CSS into another project.
+Pulsar is a focused visual CSS generator for building Button, Card, and Interactive Input styles, evaluating the result live, and copying deterministic CSS into another project.
 
 ## Overview
 
-The interface combines generator-specific controls, a spacious preview, and readable CSS output in one continuous workspace. Button and Card retain independent state for the current browser session, so switching generators does not discard in-progress changes.
+The interface combines generator-specific controls, a spacious preview, and readable CSS output in one continuous workspace. Button, Card, and Input retain independent state for the current browser session, so switching generators does not discard in-progress changes.
 
 ## Current generators
 
@@ -16,10 +16,14 @@ Configure font size, vertical padding, horizontal padding, border radius, backgr
 
 Configure width, padding, border radius, background color, text color, border width, and border color. Generated Card CSS includes `box-sizing: border-box` and `max-width: 100%` so configured widths remain practical in narrower containers.
 
+### Input
+
+Configure Base typography, spacing, shape, and colors alongside Focus border color, outline width, outline color, and outline offset. The preview is a native input, so pointer and keyboard focus exercise the real browser `:focus` behavior. Generated output contains deterministic `.input` and `.input:focus` rules, while preview-only responsive width, label, and placeholder scaffolding stay out of copied CSS.
+
 ## Features
 
 - Live preview and real-time CSS generation from the same normalized state
-- Native Button/Card selector with independent in-session generator state
+- Native Button/Card/Input selector with independent in-session generator state
 - Deterministic, copy-ready CSS output with the active filename
 - One-click copy using the Clipboard API with a resilient fallback
 - Responsive three-panel workspace that stacks cleanly at narrower widths
@@ -66,8 +70,8 @@ node tests/regression.cjs
 
 ## Status
 
-**Pulsar V2 — Button + Card**
+**Pulsar V3 — Interactive Input**
 
 ## Roadmap
 
-Potential future areas include an Input generator, Card shadow controls, Grid, and additional focused CSS generators.
+Potential future areas include additional focused CSS generators and carefully scoped output formats.

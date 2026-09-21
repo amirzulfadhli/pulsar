@@ -20,6 +20,20 @@ const state = {
       borderWidth: 1,
       borderColor: "#e4e4e7",
     },
+    input: {
+      fontSize: 16,
+      verticalPadding: 10,
+      horizontalPadding: 14,
+      borderRadius: 6,
+      backgroundColor: "#ffffff",
+      textColor: "#18181b",
+      borderWidth: 1,
+      borderColor: "#d4d4d8",
+      focusBorderColor: "#4f46e5",
+      focusOutlineWidth: 3,
+      focusOutlineColor: "#2563eb",
+      focusOutlineOffset: 2,
+    },
   },
 };
 
@@ -113,8 +127,77 @@ const cardColorControls = {
   },
 };
 
+const inputNumericControls = {
+  fontSize: {
+    input: document.getElementById("input-font-size"),
+    output: document.getElementById("input-font-size-output"),
+    min: 10,
+    max: 32,
+  },
+  verticalPadding: {
+    input: document.getElementById("input-vertical-padding"),
+    output: document.getElementById("input-vertical-padding-output"),
+    min: 4,
+    max: 32,
+  },
+  horizontalPadding: {
+    input: document.getElementById("input-horizontal-padding"),
+    output: document.getElementById("input-horizontal-padding-output"),
+    min: 8,
+    max: 64,
+  },
+  borderRadius: {
+    input: document.getElementById("input-border-radius"),
+    output: document.getElementById("input-border-radius-output"),
+    min: 0,
+    max: 32,
+  },
+  borderWidth: {
+    input: document.getElementById("input-border-width"),
+    output: document.getElementById("input-border-width-output"),
+    min: 0,
+    max: 8,
+  },
+  focusOutlineWidth: {
+    input: document.getElementById("input-focus-outline-width"),
+    output: document.getElementById("input-focus-outline-width-output"),
+    min: 1,
+    max: 6,
+  },
+  focusOutlineOffset: {
+    input: document.getElementById("input-focus-outline-offset"),
+    output: document.getElementById("input-focus-outline-offset-output"),
+    min: 0,
+    max: 8,
+  },
+};
+
+const inputColorControls = {
+  backgroundColor: {
+    input: document.getElementById("input-background-color"),
+    output: document.getElementById("input-background-color-output"),
+  },
+  textColor: {
+    input: document.getElementById("input-text-color"),
+    output: document.getElementById("input-text-color-output"),
+  },
+  borderColor: {
+    input: document.getElementById("input-border-color"),
+    output: document.getElementById("input-border-color-output"),
+  },
+  focusBorderColor: {
+    input: document.getElementById("input-focus-border-color"),
+    output: document.getElementById("input-focus-border-color-output"),
+  },
+  focusOutlineColor: {
+    input: document.getElementById("input-focus-outline-color"),
+    output: document.getElementById("input-focus-outline-color-output"),
+  },
+};
+
 const previewButton = document.querySelector(".generated-button");
 const previewCard = document.querySelector(".generated-card");
+const previewInput = document.querySelector(".generated-input");
 const generatedCode = document.getElementById("generated-css");
 const outputFilename = document.querySelector(".output-toolbar-label");
 const copyButton = document.getElementById("copy-css");
@@ -197,6 +280,40 @@ function generateCardCSS(cardState) {
 }`;
 }
 
+function renderInputPreview(inputState) {
+  previewInput.style.setProperty("--input-font-size", `${inputState.fontSize}px`);
+  previewInput.style.setProperty("--input-padding-y", `${inputState.verticalPadding}px`);
+  previewInput.style.setProperty("--input-padding-x", `${inputState.horizontalPadding}px`);
+  previewInput.style.setProperty("--input-border-radius", `${inputState.borderRadius}px`);
+  previewInput.style.setProperty("--input-background-color", inputState.backgroundColor);
+  previewInput.style.setProperty("--input-text-color", inputState.textColor);
+  previewInput.style.setProperty("--input-border-width", `${inputState.borderWidth}px`);
+  previewInput.style.setProperty("--input-border-color", inputState.borderColor);
+  previewInput.style.setProperty("--input-focus-border-color", inputState.focusBorderColor);
+  previewInput.style.setProperty("--input-focus-outline-width", `${inputState.focusOutlineWidth}px`);
+  previewInput.style.setProperty("--input-focus-outline-color", inputState.focusOutlineColor);
+  previewInput.style.setProperty("--input-focus-outline-offset", `${inputState.focusOutlineOffset}px`);
+}
+
+function generateInputCSS(inputState) {
+  return `.input {
+  box-sizing: border-box;
+  font: inherit;
+  font-size: ${inputState.fontSize}px;
+  padding: ${inputState.verticalPadding}px ${inputState.horizontalPadding}px;
+  border-radius: ${inputState.borderRadius}px;
+  background-color: ${inputState.backgroundColor};
+  color: ${inputState.textColor};
+  border: ${inputState.borderWidth}px solid ${inputState.borderColor};
+}
+
+.input:focus {
+  border-color: ${inputState.focusBorderColor};
+  outline: ${inputState.focusOutlineWidth}px solid ${inputState.focusOutlineColor};
+  outline-offset: ${inputState.focusOutlineOffset}px;
+}`;
+}
+
 const generatorDefinitions = {
   button: {
     numericControls: buttonNumericControls,
@@ -211,6 +328,13 @@ const generatorDefinitions = {
     renderPreview: renderCardPreview,
     generateCSS: generateCardCSS,
     outputFilename: "card.css",
+  },
+  input: {
+    numericControls: inputNumericControls,
+    colorControls: inputColorControls,
+    renderPreview: renderInputPreview,
+    generateCSS: generateInputCSS,
+    outputFilename: "input.css",
   },
 };
 
@@ -252,6 +376,7 @@ function switchGenerator(generatorName) {
   latestCopyAttempt += 1;
   updateWorkspaceVisibility(generatorName);
   generatorNameLabel.textContent = `${generatorName[0].toUpperCase()}${generatorName.slice(1)} generator`;
+
   copyStatus.textContent = "CSS ready to copy.";
   renderActive();
 }
@@ -360,6 +485,7 @@ async function copyCurrentCSS() {
 
 initializeGeneratorControls("button");
 initializeGeneratorControls("card");
+initializeGeneratorControls("input");
 initializeGeneratorSelector();
 switchGenerator("button");
 copyButton.addEventListener("click", copyCurrentCSS);

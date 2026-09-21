@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Pulsar is a focused visual CSS generator for building Button and Card styles."
+      content="Pulsar is a focused visual CSS generator for building Button, Card, and Input styles."
     />
     <title>Pulsar — Visual CSS Generator</title>
 
@@ -42,6 +42,14 @@
                 value="card"
               />
               <label for="generator-card">Card</label>
+              <input
+                class="generator-input"
+                id="generator-input"
+                name="generator"
+                type="radio"
+                value="input"
+              />
+              <label for="generator-input">Input</label>
             </div>
           </fieldset>
 
@@ -151,6 +159,88 @@
               </div>
             </section>
           </div>
+
+          <div class="generator-controls" data-generator-controls="input" hidden>
+            <section class="control-group" aria-labelledby="input-typography-heading">
+              <h3 class="control-heading" id="input-typography-heading">Typography</h3>
+              <div class="field">
+                <label for="input-font-size">Font size</label>
+                <output class="field-output" id="input-font-size-output" for="input-font-size">16px</output>
+                <input id="input-font-size" name="inputFontSize" type="range" min="10" max="32" value="16" />
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="input-spacing-heading">
+              <h3 class="control-heading" id="input-spacing-heading">Spacing</h3>
+              <div class="field">
+                <label for="input-vertical-padding">Vertical padding</label>
+                <output class="field-output" id="input-vertical-padding-output" for="input-vertical-padding">10px</output>
+                <input id="input-vertical-padding" name="inputVerticalPadding" type="range" min="4" max="32" value="10" />
+              </div>
+              <div class="field">
+                <label for="input-horizontal-padding">Horizontal padding</label>
+                <output class="field-output" id="input-horizontal-padding-output" for="input-horizontal-padding">14px</output>
+                <input id="input-horizontal-padding" name="inputHorizontalPadding" type="range" min="8" max="64" value="14" />
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="input-shape-heading">
+              <h3 class="control-heading" id="input-shape-heading">Shape</h3>
+              <div class="field">
+                <label for="input-border-radius">Border radius</label>
+                <output class="field-output" id="input-border-radius-output" for="input-border-radius">6px</output>
+                <input id="input-border-radius" name="inputBorderRadius" type="range" min="0" max="32" value="6" />
+              </div>
+              <div class="field">
+                <label for="input-border-width">Border width</label>
+                <output class="field-output" id="input-border-width-output" for="input-border-width">1px</output>
+                <input id="input-border-width" name="inputBorderWidth" type="range" min="0" max="8" value="1" />
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="input-color-heading">
+              <h3 class="control-heading" id="input-color-heading">Color</h3>
+              <div class="field">
+                <label for="input-background-color">Background color</label>
+                <span class="color-value" id="input-background-color-output">#FFFFFF</span>
+                <input id="input-background-color" name="inputBackgroundColor" type="color" value="#ffffff" />
+              </div>
+              <div class="field">
+                <label for="input-text-color">Text color</label>
+                <span class="color-value" id="input-text-color-output">#18181B</span>
+                <input id="input-text-color" name="inputTextColor" type="color" value="#18181b" />
+              </div>
+              <div class="field">
+                <label for="input-border-color">Border color</label>
+                <span class="color-value" id="input-border-color-output">#D4D4D8</span>
+                <input id="input-border-color" name="inputBorderColor" type="color" value="#d4d4d8" />
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="input-focus-heading">
+              <h3 class="control-heading" id="input-focus-heading">Focus</h3>
+              <div class="field">
+                <label for="input-focus-border-color">Focus border color</label>
+                <span class="color-value" id="input-focus-border-color-output">#4F46E5</span>
+                <input id="input-focus-border-color" name="inputFocusBorderColor" type="color" value="#4f46e5" />
+              </div>
+              <div class="field">
+                <label for="input-focus-outline-width">Focus outline width</label>
+                <output class="field-output" id="input-focus-outline-width-output" for="input-focus-outline-width">3px</output>
+                <input id="input-focus-outline-width" name="inputFocusOutlineWidth" type="range" min="1" max="6" value="3" />
+              </div>
+              <div class="field">
+                <label for="input-focus-outline-color">Focus outline color</label>
+                <span class="color-value" id="input-focus-outline-color-output">#2563EB</span>
+                <input id="input-focus-outline-color" name="inputFocusOutlineColor" type="color" value="#2563eb" />
+              </div>
+              <div class="field">
+                <label for="input-focus-outline-offset">Focus outline offset</label>
+                <output class="field-output" id="input-focus-outline-offset-output" for="input-focus-outline-offset">2px</output>
+                <input id="input-focus-outline-offset" name="inputFocusOutlineOffset" type="range" min="0" max="8" value="2" />
+              </div>
+            </section>
+          </div>
         </form>
       </aside>
 
@@ -169,6 +259,15 @@
               Build consistent interfaces with reusable foundations and clear visual rules.
             </p>
           </article>
+          <div class="generated-input-preview" data-generator-preview="input" hidden>
+            <label class="generated-input-label" for="generated-input">Email address</label>
+            <input
+              class="generated-input"
+              id="generated-input"
+              type="text"
+              placeholder="name@example.com"
+            />
+          </div>
         </div>
 
         <footer class="preview-footer">

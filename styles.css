@@ -144,7 +144,7 @@ input[type="range"] {
 
 .generator-options {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -312,6 +312,36 @@ input[type="color"]::-webkit-color-swatch {
 .generated-card-body {
   margin: 0;
   line-height: 1.6;
+}
+
+.generated-input-preview {
+  display: grid;
+  gap: 8px;
+  width: min(360px, 100%);
+  min-width: 0;
+}
+
+.generated-input-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.generated-input {
+  box-sizing: border-box;
+  font: inherit;
+  width: 100%;
+  padding: var(--input-padding-y) var(--input-padding-x);
+  border: var(--input-border-width) solid var(--input-border-color);
+  border-radius: var(--input-border-radius);
+  color: var(--input-text-color);
+  background-color: var(--input-background-color);
+  font-size: var(--input-font-size);
+}
+
+.generated-input:focus {
+  border-color: var(--input-focus-border-color);
+  outline: var(--input-focus-outline-width) solid var(--input-focus-outline-color);
+  outline-offset: var(--input-focus-outline-offset);
 }
 
 [hidden] {
