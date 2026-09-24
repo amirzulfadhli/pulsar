@@ -34,6 +34,13 @@ const state = {
       focusOutlineColor: "#2563eb",
       focusOutlineOffset: 2,
     },
+    flexbox: {
+      flexDirection: "row",
+      justifyContent: "flex-start",
+      alignItems: "stretch",
+      flexWrap: "nowrap",
+      gap: 16,
+    },
   },
 };
 
@@ -195,9 +202,45 @@ const inputColorControls = {
   },
 };
 
+const flexboxEnumControls = {
+  flexDirection: {
+    input: document.getElementById("flex-direction"),
+    allowedValues: ["row", "row-reverse", "column", "column-reverse"],
+  },
+  justifyContent: {
+    input: document.getElementById("justify-content"),
+    allowedValues: [
+      "flex-start",
+      "center",
+      "flex-end",
+      "space-between",
+      "space-around",
+      "space-evenly",
+    ],
+  },
+  alignItems: {
+    input: document.getElementById("align-items"),
+    allowedValues: ["stretch", "flex-start", "center", "flex-end", "baseline"],
+  },
+  flexWrap: {
+    input: document.getElementById("flex-wrap"),
+    allowedValues: ["nowrap", "wrap", "wrap-reverse"],
+  },
+};
+
+const flexboxNumericControls = {
+  gap: {
+    input: document.getElementById("flex-gap"),
+    output: document.getElementById("flex-gap-output"),
+    min: 0,
+    max: 64,
+  },
+};
+
 const previewButton = document.querySelector(".generated-button");
 const previewCard = document.querySelector(".generated-card");
 const previewInput = document.querySelector(".generated-input");
+const previewFlexbox = document.querySelector(".generated-flexbox");
 const generatedCode = document.getElementById("generated-css");
 const outputFilename = document.querySelector(".output-toolbar-label");
 const copyButton = document.getElementById("copy-css");
@@ -230,6 +273,10 @@ function normalizeNumber(value, minimum, maximum, fallback) {
 function normalizeColor(value, fallback) {
   const color = String(value).trim().toLowerCase();
   return /^#[0-9a-f]{6}$/.test(color) ? color : fallback;
+}
+
+function normalizeEnum(value, allowedValues, fallback) {
+  return allowedValues.includes(value) ? value : fallback;
 }
 
 function renderButtonPreview(buttonState) {
@@ -314,6 +361,26 @@ function generateInputCSS(inputState) {
 }`;
 }
 
+function renderFlexboxPreview(flexboxState) {
+  previewFlexbox.style.display = "flex";
+  previewFlexbox.style.flexDirection = flexboxState.flexDirection;
+  previewFlexbox.style.justifyContent = flexboxState.justifyContent;
+  previewFlexbox.style.alignItems = flexboxState.alignItems;
+  previewFlexbox.style.flexWrap = flexboxState.flexWrap;
+  previewFlexbox.style.gap = `${flexboxState.gap}px`;
+}
+
+function generateFlexboxCSS(flexboxState) {
+  return `.flexbox {
+  display: flex;
+  flex-direction: ${flexboxState.flexDirection};
+  justify-content: ${flexboxState.justifyContent};
+  align-items: ${flexboxState.alignItems};
+  flex-wrap: ${flexboxState.flexWrap};
+  gap: ${flexboxState.gap}px;
+}`;
+}
+
 const generatorDefinitions = {
   button: {
     numericControls: buttonNumericControls,
@@ -336,6 +403,13 @@ const generatorDefinitions = {
     generateCSS: generateInputCSS,
     outputFilename: "input.css",
   },
+  flexbox: {
+    numericControls: flexboxNumericControls,
+    enumControls: flexboxEnumControls,
+    renderPreview: renderFlexboxPreview,
+    generateCSS: generateFlexboxCSS,
+    outputFilename: "flexbox.css",
+  },
 };
 
 function renderActive() {
@@ -348,17 +422,27 @@ function renderActive() {
 
   definition.renderPreview(generatorState);
 
-  Object.entries(definition.numericControls).forEach(([property, control]) => {
+  Object.entries(definition.numericControls ?? {}).forEach(([property, control]) => {
     control.output.textContent = `${generatorState[property]}px`;
   });
 
-  Object.entries(definition.colorControls).forEach(([property, control]) => {
+  Object.entries(definition.colorControls ?? {}).forEach(([property, control]) => {
     control.output.textContent = generatorState[property].toUpperCase();
+  });
+
+  Object.entries(definition.enumControls ?? {}).forEach(([property, control]) => {
+    control.input.value = generatorState[property];
   });
 
   generatedCSS = definition.generateCSS(generatorState);
   generatedCode.textContent = generatedCSS;
   outputFilename.textContent = definition.outputFilename;
+}
+
+function renderStateEdit() {
+  latestCopyAttempt += 1;
+  copyStatus.textContent = "CSS ready to copy.";
+  renderActive();
 }
 
 function updateWorkspaceVisibility(generatorName) {
@@ -377,6 +461,7 @@ function switchGenerator(generatorName) {
   updateWorkspaceVisibility(generatorName);
   generatorNameLabel.textContent = `${generatorName[0].toUpperCase()}${generatorName.slice(1)} generator`;
 
+  copyButton.disabled = false;
   copyStatus.textContent = "CSS ready to copy.";
   renderActive();
 }
@@ -395,7 +480,7 @@ function initializeGeneratorControls(generatorName) {
   const definition = generatorDefinitions[generatorName];
   const generatorState = state.generators[generatorName];
 
-  Object.entries(definition.numericControls).forEach(([property, control]) => {
+  Object.entries(definition.numericControls ?? {}).forEach(([property, control]) => {
     control.input.value = generatorState[property];
     control.input.addEventListener("input", (event) => {
       const normalizedValue = normalizeNumber(
@@ -407,11 +492,11 @@ function initializeGeneratorControls(generatorName) {
 
       generatorState[property] = normalizedValue;
       event.currentTarget.value = normalizedValue;
-      renderActive();
+      renderStateEdit();
     });
   });
 
-  Object.entries(definition.colorControls).forEach(([property, control]) => {
+  Object.entries(definition.colorControls ?? {}).forEach(([property, control]) => {
     control.input.value = generatorState[property];
     control.input.addEventListener("input", (event) => {
       const normalizedValue = normalizeColor(
@@ -421,7 +506,22 @@ function initializeGeneratorControls(generatorName) {
 
       generatorState[property] = normalizedValue;
       event.currentTarget.value = normalizedValue;
-      renderActive();
+      renderStateEdit();
+    });
+  });
+
+  Object.entries(definition.enumControls ?? {}).forEach(([property, control]) => {
+    control.input.value = generatorState[property];
+    control.input.addEventListener("change", (event) => {
+      const normalizedValue = normalizeEnum(
+        event.currentTarget.value,
+        control.allowedValues,
+        generatorState[property],
+      );
+
+      generatorState[property] = normalizedValue;
+      event.currentTarget.value = normalizedValue;
+      renderStateEdit();
     });
   });
 }
@@ -486,6 +586,7 @@ async function copyCurrentCSS() {
 initializeGeneratorControls("button");
 initializeGeneratorControls("card");
 initializeGeneratorControls("input");
+initializeGeneratorControls("flexbox");
 initializeGeneratorSelector();
 switchGenerator("button");
 copyButton.addEventListener("click", copyCurrentCSS);

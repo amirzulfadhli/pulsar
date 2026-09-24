@@ -40,7 +40,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -144,7 +145,7 @@ input[type="range"] {
 
 .generator-options {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -164,7 +165,7 @@ input[type="range"] {
 }
 
 .generator-options label {
-  padding: 7px 10px;
+  padding: 7px 4px;
   border: 1px solid transparent;
   border-radius: 4px;
   color: var(--ink-muted);
@@ -253,6 +254,24 @@ input[type="color"]::-webkit-color-swatch-wrapper {
 input[type="color"]::-webkit-color-swatch {
   border: 0;
   border-radius: 3px;
+}
+
+select {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface);
+}
+
+select:disabled,
+input:disabled,
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .color-value {
@@ -344,6 +363,49 @@ input[type="color"]::-webkit-color-swatch {
   outline-offset: var(--input-focus-outline-offset);
 }
 
+.generated-flexbox {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 16px;
+  box-sizing: border-box;
+  width: min(340px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  height: 340px;
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.flex-item {
+  display: grid;
+  flex: 0 0 48px;
+  min-width: 48px;
+  min-height: 48px;
+  margin: 0;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.flex-item:nth-child(2) {
+  font-size: 18px;
+}
+
+.flex-item:nth-child(4) {
+  font-size: 12px;
+}
+
 [hidden] {
   display: none !important;
 }
@@ -396,7 +458,7 @@ input[type="color"]::-webkit-color-swatch {
   font-weight: 650;
 }
 
-.copy-button:hover {
+.copy-button:not(:disabled):hover {
   border-color: #a1a1aa;
   background: #f4f4f5;
 }

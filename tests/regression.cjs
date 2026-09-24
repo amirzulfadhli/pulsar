@@ -19,16 +19,19 @@ class MockElement {
       },
     };
     this.listeners = {};
+    this.listenerRegistrations = {};
     this.removed = false;
     this.focused = false;
     this.checked = false;
     this.disabled = false;
     this.hidden = false;
     this.dataset = {};
+    this.children = [];
   }
 
   addEventListener(type, callback) {
     this.listeners[type] = callback;
+    this.listenerRegistrations[type] = (this.listenerRegistrations[type] ?? 0) + 1;
   }
 
   input(value) {
@@ -43,6 +46,11 @@ class MockElement {
 
   change(checked = true) {
     this.checked = checked;
+    return this.listeners.change({ currentTarget: this });
+  }
+
+  changeValue(value) {
+    this.value = value;
     return this.listeners.change({ currentTarget: this });
   }
 
@@ -80,7 +88,9 @@ const ids = [
   "input-focus-outline-width", "input-focus-outline-width-output",
   "input-focus-outline-color", "input-focus-outline-color-output",
   "input-focus-outline-offset", "input-focus-outline-offset-output",
-  "generator-name", "generator-button", "generator-card", "generator-input",
+  "flex-direction", "justify-content", "align-items", "flex-wrap",
+  "flex-gap", "flex-gap-output",
+  "generator-name", "generator-button", "generator-card", "generator-input", "generator-flexbox",
   "generated-css", "copy-css", "copy-status",
 ];
 
@@ -90,6 +100,13 @@ elements["generator-button"].value = "button";
 elements["generator-button"].checked = true;
 elements["generator-card"].value = "card";
 elements["generator-input"].value = "input";
+elements["generator-flexbox"].value = "flexbox";
+elements["flex-direction"].value = "row";
+elements["justify-content"].value = "flex-start";
+elements["align-items"].value = "stretch";
+elements["flex-wrap"].value = "nowrap";
+elements["flex-gap"].value = "16";
+elements["flex-gap-output"].textContent = "16px";
 const inputBaseControlIds = [
   "input-font-size",
   "input-vertical-padding",
@@ -115,6 +132,11 @@ const inputPreview = new MockElement("input-preview");
 inputPreview.dataset.generatorPreview = "input";
 inputPreview.hidden = true;
 const inputPreviewControl = new MockElement("generated-input");
+const flexboxPreview = new MockElement("flexbox-preview");
+flexboxPreview.dataset.generatorPreview = "flexbox";
+flexboxPreview.hidden = true;
+flexboxPreview.children = Array.from({ length: 5 }, (_, index) => new MockElement(`flex-item-${index + 1}`));
+const originalFlexboxChildren = [...flexboxPreview.children];
 const buttonControlView = new MockElement("button-controls");
 buttonControlView.dataset.generatorControls = "button";
 const cardControlView = new MockElement("card-controls");
@@ -123,6 +145,9 @@ cardControlView.hidden = true;
 const inputControlView = new MockElement("input-controls");
 inputControlView.dataset.generatorControls = "input";
 inputControlView.hidden = true;
+const flexboxControlView = new MockElement("flexbox-controls");
+flexboxControlView.dataset.generatorControls = "flexbox";
+flexboxControlView.hidden = true;
 const outputFilename = new MockElement("output-filename");
 const temporaryElements = [];
 const fallbackWrites = [];
@@ -135,18 +160,24 @@ const document = {
     if (selector === ".generated-button") return preview;
     if (selector === ".generated-card") return cardPreview;
     if (selector === ".generated-input") return inputPreviewControl;
+    if (selector === ".generated-flexbox") return flexboxPreview;
     if (selector === ".output-toolbar-label") return outputFilename;
     throw new Error(`Unexpected selector: ${selector}`);
   },
   querySelectorAll(selector) {
     if (selector === 'input[name="generator"]') {
-      return [elements["generator-button"], elements["generator-card"], elements["generator-input"]];
+      return [
+        elements["generator-button"],
+        elements["generator-card"],
+        elements["generator-input"],
+        elements["generator-flexbox"],
+      ];
     }
     if (selector === "[data-generator-controls]") {
-      return [buttonControlView, cardControlView, inputControlView];
+      return [buttonControlView, cardControlView, inputControlView, flexboxControlView];
     }
     if (selector === "[data-generator-preview]") {
-      return [preview, cardPreview, inputPreview];
+      return [preview, cardPreview, inputPreview, flexboxPreview];
     }
     throw new Error(`Unexpected selector: ${selector}`);
   },
@@ -183,6 +214,11 @@ vm.runInContext(
     generateInputCSS,
     inputNumericControls,
     inputColorControls,
+    normalizeEnum,
+    renderFlexboxPreview,
+    generateFlexboxCSS,
+    flexboxNumericControls,
+    flexboxEnumControls,
     switchGenerator,
     generatedCSS: () => generatedCSS,
   };`,
@@ -259,6 +295,17 @@ function expectedInputCSS(state) {
 }`;
 }
 
+function expectedFlexboxCSS(state) {
+  return `.flexbox {
+  display: flex;
+  flex-direction: ${state.flexDirection};
+  justify-content: ${state.justifyContent};
+  align-items: ${state.alignItems};
+  flex-wrap: ${state.flexWrap};
+  gap: ${state.gap}px;
+}`;
+}
+
 function checkButtonSynchronization(label) {
   const state = context.testApi.state.generators.button;
   const generatedCSS = context.testApi.generatedCSS();
@@ -319,13 +366,57 @@ function checkInputSynchronization(label) {
   check(elements["generated-css"].textContent === generatedCSS, `${label}: displayed Input CSS is authoritative`);
 }
 
+function checkFlexboxSynchronization(label) {
+  const flexboxState = context.testApi.state.generators.flexbox;
+  const generatedCSS = context.testApi.generatedCSS();
+  const previewMatches =
+    flexboxPreview.style.display === "flex" &&
+    flexboxPreview.style.flexDirection === flexboxState.flexDirection &&
+    flexboxPreview.style.justifyContent === flexboxState.justifyContent &&
+    flexboxPreview.style.alignItems === flexboxState.alignItems &&
+    flexboxPreview.style.flexWrap === flexboxState.flexWrap &&
+    flexboxPreview.style.gap === `${flexboxState.gap}px`;
+
+  check(previewMatches, `${label}: Flexbox preview matches state`);
+  check(generatedCSS === expectedFlexboxCSS(flexboxState), `${label}: Flexbox CSS matches state exactly`);
+  check(elements["generated-css"].textContent === generatedCSS, `${label}: displayed Flexbox CSS is authoritative`);
+  check(elements["flex-gap-output"].textContent === `${flexboxState.gap}px`, `${label}: Gap output matches state`);
+}
+
 async function run() {
   const rootState = context.testApi.state;
   const buttonState = rootState.generators.button;
   const cardState = rootState.generators.card;
   const inputState = rootState.generators.input;
+  const flexboxState = rootState.generators.flexbox;
   const copyButton = elements["copy-css"];
   const copyStatus = elements["copy-status"];
+
+  const expectedListenerRegistrations = {
+    input: [
+      "font-size", "vertical-padding", "horizontal-padding", "border-radius", "border-width",
+      "background-color", "text-color", "border-color", "card-width", "card-padding",
+      "card-border-radius", "card-border-width", "card-background-color", "card-text-color",
+      "card-border-color", "input-font-size", "input-vertical-padding", "input-horizontal-padding",
+      "input-border-radius", "input-border-width", "input-background-color", "input-text-color",
+      "input-border-color", "input-focus-border-color", "input-focus-outline-width",
+      "input-focus-outline-color", "input-focus-outline-offset", "flex-gap",
+    ],
+    change: [
+      "flex-direction", "justify-content", "align-items", "flex-wrap", "generator-button",
+      "generator-card", "generator-input", "generator-flexbox",
+    ],
+    click: ["copy-css"],
+  };
+
+  Object.entries(expectedListenerRegistrations).forEach(([eventType, elementIds]) => {
+    elementIds.forEach((id) => {
+      check(
+        elements[id].listenerRegistrations[eventType] === 1,
+        `${id} has exactly one ${eventType} listener`,
+      );
+    });
+  });
 
   check(
     JSON.stringify(buttonState) === JSON.stringify({
@@ -369,14 +460,30 @@ async function run() {
     }),
     "all twelve Input defaults are correct",
   );
+  check(
+    JSON.stringify(flexboxState) === JSON.stringify({
+      flexDirection: "row",
+      justifyContent: "flex-start",
+      alignItems: "stretch",
+      flexWrap: "nowrap",
+      gap: 16,
+    }),
+    "Flexbox state contains exactly the five required defaults",
+  );
+  check(flexboxPreview.children.length === 5, "Flexbox preview harness retains exactly five children");
   check(rootState.activeGenerator === "button", "Button is the default active generator");
   check(
-    JSON.stringify(Object.keys(rootState.generators)) === JSON.stringify(["button", "card", "input"]),
-    "state contains independent Button, Card, and Input generators",
+    JSON.stringify(Object.keys(rootState.generators)) === JSON.stringify(["button", "card", "input", "flexbox"]),
+    "state contains four independent generators",
   );
   check(
-    JSON.stringify(Object.keys(context.testApi.generatorDefinitions)) === JSON.stringify(["button", "card", "input"]),
-    "dispatch table contains Button, Card, and Input definitions",
+    JSON.stringify(Object.keys(context.testApi.generatorDefinitions)) === JSON.stringify(["button", "card", "input", "flexbox"]),
+    "dispatch table contains all four generator definitions",
+  );
+  check(
+    context.testApi.normalizeEnum("column", ["row", "column"], "row") === "column" &&
+      context.testApi.normalizeEnum("malformed", ["row", "column"], "column") === "column",
+    "normalizeEnum accepts allow-listed values and otherwise preserves its fallback",
   );
   check(
     context.testApi.generatorDefinitions.button.renderPreview === context.testApi.renderButtonPreview &&
@@ -868,26 +975,31 @@ async function run() {
     button: elements["generator-button"],
     card: elements["generator-card"],
     input: elements["generator-input"],
+    flexbox: elements["generator-flexbox"],
   };
   const controlViews = {
     button: buttonControlView,
     card: cardControlView,
     input: inputControlView,
+    flexbox: flexboxControlView,
   };
   const previewViews = {
     button: preview,
     card: cardPreview,
     input: inputPreview,
+    flexbox: flexboxPreview,
   };
   const expectedFilenames = {
     button: "button.css",
     card: "card.css",
     input: "input.css",
+    flexbox: "flexbox.css",
   };
   const expectedGenerators = {
     button: expectedButtonCSS,
     card: expectedCardCSS,
     input: expectedInputCSS,
+    flexbox: expectedFlexboxCSS,
   };
 
   function selectTestGenerator(generatorName) {
@@ -909,6 +1021,7 @@ async function run() {
     check(outputFilename.textContent === expectedFilenames[generatorName], `${label}: filename is synchronized`);
     check(context.testApi.generatedCSS() === expectedCSS, `${label}: authoritative CSS is synchronized`);
     check(elements["generated-css"].textContent === expectedCSS, `${label}: visible CSS is synchronized`);
+    check(!copyButton.disabled, `${label}: Copy is enabled`);
     check(copyStatus.textContent === "CSS ready to copy.", `${label}: status is reset truthfully`);
   }
 
@@ -1005,14 +1118,177 @@ async function run() {
   check(context.testApi.generatedCSS() === maximumInputCSS, "Input maximum CSS survives rapid switching");
   checkInputSynchronization("Input maximum boundary restoration");
 
-  const clipboardPairs = [
-    ["button", "card"],
-    ["button", "input"],
-    ["card", "button"],
-    ["card", "input"],
-    ["input", "button"],
-    ["input", "card"],
+  const defaultFlexboxCSS = `.flexbox {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 16px;
+}`;
+  const v3StateBeforeFlexbox = {
+    button: JSON.stringify(buttonState),
+    card: JSON.stringify(cardState),
+    input: JSON.stringify(inputState),
+  };
+
+  selectTestGenerator("flexbox");
+  checkActiveConsistency("flexbox", "first Flexbox visit");
+  check(context.testApi.generatedCSS() === defaultFlexboxCSS, "Flexbox default CSS is exact and ordered");
+  checkFlexboxSynchronization("Flexbox defaults");
+  check(
+    context.testApi.generatorDefinitions.flexbox.numericControls === context.testApi.flexboxNumericControls &&
+      context.testApi.generatorDefinitions.flexbox.enumControls === context.testApi.flexboxEnumControls &&
+      context.testApi.generatorDefinitions.flexbox.renderPreview === context.testApi.renderFlexboxPreview &&
+      context.testApi.generatorDefinitions.flexbox.generateCSS === context.testApi.generateFlexboxCSS &&
+      context.testApi.generatorDefinitions.flexbox.outputFilename === "flexbox.css",
+    "Flexbox definition uses the shared numeric, enum, render, output, and filename architecture",
+  );
+
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  check(clipboardCalls.at(-1) === defaultFlexboxCSS, "modern API copies exact default Flexbox CSS");
+  check(copyStatus.textContent === "CSS copied", "default Flexbox copy reports success");
+
+  const enumCases = [
+    ["flex-direction", "flexDirection", ["row", "row-reverse", "column", "column-reverse"]],
+    ["justify-content", "justifyContent", ["flex-start", "center", "flex-end", "space-between", "space-around", "space-evenly"]],
+    ["align-items", "alignItems", ["stretch", "flex-start", "center", "flex-end", "baseline"]],
+    ["flex-wrap", "flexWrap", ["nowrap", "wrap", "wrap-reverse"]],
   ];
+
+  for (const [id, property, allowedValues] of enumCases) {
+    check(!elements[id].disabled, `${property} select is enabled`);
+    check(Boolean(elements[id].listeners.change), `${property} uses a native change listener`);
+    check(
+      JSON.stringify(context.testApi.flexboxEnumControls[property].allowedValues) === JSON.stringify(allowedValues),
+      `${property} exposes only its exact allow-list`,
+    );
+    for (const value of allowedValues) {
+      elements[id].changeValue(value);
+      check(flexboxState[property] === value, `${property} accepts ${value}`);
+      check(elements[id].value === value, `${property} control reflects ${value}`);
+      checkFlexboxSynchronization(`${property} ${value}`);
+    }
+    const previousValidValue = flexboxState[property];
+    elements[id].changeValue("malformed-value");
+    check(flexboxState[property] === previousValidValue, `${property} rejects malformed input without resetting`);
+    check(elements[id].value === previousValidValue, `${property} restores its previous valid control value`);
+    checkFlexboxSynchronization(`${property} malformed protection`);
+  }
+
+  check(!elements["flex-gap"].disabled, "Gap range is enabled");
+  check(Boolean(elements["flex-gap"].listeners.input), "Gap uses the shared immediate numeric input path");
+  for (const value of [0, 16, 64]) {
+    elements["flex-gap"].input(String(value));
+    check(flexboxState.gap === value, `Gap accepts ${value}`);
+    checkFlexboxSynchronization(`Gap ${value}`);
+  }
+  const validGap = flexboxState.gap;
+  for (const invalidValue of ["", "malformed", "Infinity"]) {
+    elements["flex-gap"].input(invalidValue);
+    check(flexboxState.gap === validGap, `Gap preserves its valid value for ${invalidValue || "empty input"}`);
+    checkFlexboxSynchronization(`Gap ${invalidValue || "empty"} protection`);
+  }
+  elements["flex-gap"].input("-1");
+  check(flexboxState.gap === 0, "Gap clamps negative values to zero");
+  elements["flex-gap"].input("65");
+  check(flexboxState.gap === 64, "Gap clamps excessive values to 64");
+
+  elements["flex-direction"].changeValue("column-reverse");
+  elements["justify-content"].changeValue("space-evenly");
+  elements["align-items"].changeValue("baseline");
+  elements["flex-wrap"].changeValue("wrap-reverse");
+  elements["flex-gap"].input("64");
+  const modifiedFlexboxCSS = `.flexbox {
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: space-evenly;
+  align-items: baseline;
+  flex-wrap: wrap-reverse;
+  gap: 64px;
+}`;
+  check(context.testApi.generatedCSS() === modifiedFlexboxCSS, "non-default Flexbox CSS is exact and ordered");
+  check(
+    !/(?:^|\n)\s*(?:width|height|padding|border(?:-[a-z-]+)?|background(?:-color)?|overflow|font-size|color):/m.test(modifiedFlexboxCSS) &&
+      !/flex-item/.test(modifiedFlexboxCSS),
+    "Flexbox CSS excludes all preview-only scaffolding",
+  );
+  checkFlexboxSynchronization("modified Flexbox configuration");
+  check(
+    flexboxPreview.children.length === 5 &&
+      flexboxPreview.children.every((child, index) => child === originalFlexboxChildren[index]),
+    "Flexbox rendering reuses the same five child nodes",
+  );
+  const preservedFlexboxState = JSON.stringify(flexboxState);
+
+  const flexboxRoutes = [
+    ["input"],
+    ["card"],
+    ["button"],
+    ["button", "card", "input"],
+    ["input", "button", "card", "input"],
+  ];
+  for (const route of flexboxRoutes) {
+    route.forEach(selectTestGenerator);
+    selectTestGenerator("flexbox");
+    check(JSON.stringify(flexboxState) === preservedFlexboxState, `Flexbox state survives ${route.join(" to ")}`);
+    checkActiveConsistency("flexbox", `Flexbox restored after ${route.join(" to ")}`);
+    checkFlexboxSynchronization(`Flexbox route ${route.join(" to ")}`);
+  }
+
+  check(JSON.stringify(buttonState) === v3StateBeforeFlexbox.button, "Button state survives Flexbox changes");
+  check(JSON.stringify(cardState) === v3StateBeforeFlexbox.card, "Card state survives Flexbox changes");
+  check(JSON.stringify(inputState) === v3StateBeforeFlexbox.input, "Input state survives Flexbox changes");
+  selectTestGenerator("button");
+  checkButtonSynchronization("Button restored from Flexbox");
+  selectTestGenerator("card");
+  checkCardSynchronization("Card restored from Flexbox");
+  selectTestGenerator("input");
+  checkInputSynchronization("Input restored from Flexbox");
+
+  const generatorNames = ["button", "card", "input", "flexbox"];
+  const fourGeneratorStateSnapshot = Object.fromEntries(
+    generatorNames.map((generatorName) => [generatorName, JSON.stringify(rootState.generators[generatorName])]),
+  );
+
+  for (const source of generatorNames) {
+    selectTestGenerator(source);
+    for (const destination of generatorNames.filter((generatorName) => generatorName !== source)) {
+      selectTestGenerator(destination);
+      checkActiveConsistency(destination, `${source} to ${destination} directed switch`);
+      check(
+        JSON.stringify(rootState.generators[source]) === fourGeneratorStateSnapshot[source],
+        `${source} state survives directed switch to ${destination}`,
+      );
+      selectTestGenerator(source);
+      checkActiveConsistency(source, `${source} restored after ${destination}`);
+    }
+  }
+
+  const switchingOrders = [
+    ["button", "card", "input", "flexbox", "button"],
+    ["flexbox", "input", "card", "button", "flexbox"],
+    ["card", "flexbox", "button", "input", "card"],
+  ];
+
+  for (let round = 1; round <= 3; round += 1) {
+    for (const order of switchingOrders) {
+      order.forEach(selectTestGenerator);
+      const destination = order.at(-1);
+      checkActiveConsistency(destination, `round ${round} order ${order.join(" to ")}`);
+      generatorNames.forEach((generatorName) => {
+        check(
+          JSON.stringify(rootState.generators[generatorName]) === fourGeneratorStateSnapshot[generatorName],
+          `${generatorName} state survives round ${round} order ${order.join(" to ")}`,
+        );
+      });
+    }
+  }
+
+  const clipboardPairs = generatorNames.flatMap((source) =>
+    generatorNames.filter((destination) => destination !== source).map((destination) => [source, destination]),
+  );
 
   for (const [source, destination] of clipboardPairs) {
     selectTestGenerator(source);
@@ -1038,7 +1314,92 @@ async function run() {
     checkActiveConsistency(destination, `${source} to ${destination} race destination`);
   }
 
-  for (const generatorName of ["button", "card", "input"]) {
+  selectTestGenerator("button");
+  const delayedDestinationEdit = deferred();
+  setClipboard(() => delayedDestinationEdit.promise);
+  const pendingDestinationEditCopy = copyButton.click();
+  selectTestGenerator("flexbox");
+  elements["flex-gap"].input("23");
+  const destinationCSSAfterEdit = context.testApi.generatedCSS();
+  delayedDestinationEdit.resolve();
+  await pendingDestinationEditCopy;
+  check(
+    copyStatus.textContent === "CSS ready to copy.",
+    "copy then switch then edit destination keeps stale success from replacing ready feedback",
+  );
+  check(
+    context.testApi.generatedCSS() === destinationCSSAfterEdit,
+    "copy then switch then edit destination preserves the destination CSS",
+  );
+
+  const editCases = [
+    ["button", "font-size", "18", "19"],
+    ["card", "card-width", "318", "319"],
+    ["input", "input-font-size", "18", "19"],
+    ["flexbox", "flex-gap", "18", "19"],
+  ];
+
+  for (const [generatorName, controlId, firstValue, secondValue] of editCases) {
+    selectTestGenerator(generatorName);
+    setClipboard(() => Promise.resolve());
+    await copyButton.click();
+    check(copyStatus.textContent === "CSS copied", `${generatorName}: copy succeeds before an edit`);
+
+    elements[controlId].input(firstValue);
+    check(
+      copyStatus.textContent === "CSS ready to copy.",
+      `${generatorName}: editing copied CSS resets feedback to ready`,
+    );
+
+    const staleSuccess = deferred();
+    setClipboard(() => staleSuccess.promise);
+    const pendingStaleSuccess = copyButton.click();
+    elements[controlId].input(secondValue);
+    const currentCSSAfterEdit = context.testApi.generatedCSS();
+    staleSuccess.resolve();
+    await pendingStaleSuccess;
+    check(
+      copyStatus.textContent === "CSS ready to copy.",
+      `${generatorName}: delayed pre-edit success cannot publish stale feedback`,
+    );
+    check(
+      context.testApi.generatedCSS() === currentCSSAfterEdit,
+      `${generatorName}: delayed pre-edit success cannot replace current CSS`,
+    );
+
+    const staleFailure = deferred();
+    fallbackResult = false;
+    setClipboard(() => staleFailure.promise);
+    const pendingStaleFailure = copyButton.click();
+    elements[controlId].input(firstValue);
+    staleFailure.reject(new Error(`${generatorName} delayed pre-edit failure`));
+    await pendingStaleFailure;
+    check(
+      copyStatus.textContent === "CSS ready to copy.",
+      `${generatorName}: delayed pre-edit failure cannot publish stale feedback`,
+    );
+    checkActiveConsistency(generatorName, `${generatorName} edit-race destination`);
+  }
+
+  selectTestGenerator("flexbox");
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  elements["flex-direction"].changeValue("row-reverse");
+  check(
+    copyStatus.textContent === "CSS ready to copy.",
+    "Flexbox enum edits reset copied feedback through the shared edit path",
+  );
+
+  selectTestGenerator("button");
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  elements["background-color"].input("#123456");
+  check(
+    copyStatus.textContent === "CSS ready to copy.",
+    "color edits reset copied feedback through the shared edit path",
+  );
+
+  for (const generatorName of generatorNames) {
     selectTestGenerator(generatorName);
     const currentCSS = context.testApi.generatedCSS();
     setClipboard(() => Promise.resolve());
@@ -1060,7 +1421,17 @@ async function run() {
     check(copyStatus.textContent.includes("select the CSS manually"), `${generatorName}: fallback failure is truthful`);
   }
 
+  Object.entries(expectedListenerRegistrations).forEach(([eventType, elementIds]) => {
+    elementIds.forEach((id) => {
+      check(
+        elements[id].listenerRegistrations[eventType] === 1,
+        `${id} still has exactly one ${eventType} listener after switching and editing`,
+      );
+    });
+  });
+
   const markupInputIds = [...html.matchAll(/<input\b[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
+  const markupSelectIds = [...html.matchAll(/<select\b[^>]*\bid="([^"]+)"/g)].map((match) => match[1]);
   const labelTargets = [...html.matchAll(/<label\b[^>]*\bfor="([^"]+)"/g)].map((match) => match[1]);
   const buttonControlIds = markupInputIds.filter((id) =>
     [
@@ -1076,18 +1447,23 @@ async function run() {
   );
   const cardControlIds = markupInputIds.filter((id) => id.startsWith("card-"));
   const inputControlIds = markupInputIds.filter((id) => id.startsWith("input-"));
-  check(markupInputIds.length === 31, "markup contains three radios, twenty-seven property controls, and one preview input");
-  check(labelTargets.length === 31, "markup contains a label for every radio, property control, and preview input");
+  const flexboxControlIds = [...markupSelectIds, "flex-gap"];
+  check(markupInputIds.length === 33, "markup contains four radios, twenty-eight property inputs, and one preview input");
+  check(markupSelectIds.length === 4, "Flexbox shell contains exactly four native selects");
+  check(labelTargets.length === 37, "markup contains a label for every radio, property control, select, and preview input");
   check(buttonControlIds.length === 8, "Button view retains exactly eight controls");
   check(cardControlIds.length === 7, "Card view contains exactly seven controls");
   check(inputControlIds.length === 12, "Input generator contains exactly twelve controls");
+  check(flexboxControlIds.length === 5, "Flexbox contains exactly five controls");
   check(markupInputIds.every((id) => labelTargets.includes(id)), "every control has an associated label");
+  check(markupSelectIds.every((id) => labelTargets.includes(id)), "every Flexbox select has an associated label");
   check(
     html.includes('<fieldset class="generator-selector">') &&
       /id="generator-button"[\s\S]*?type="radio"[\s\S]*?value="button"[\s\S]*?checked/.test(html) &&
       /id="generator-card"[\s\S]*?type="radio"[\s\S]*?value="card"/.test(html) &&
-      /id="generator-input"[\s\S]*?type="radio"[\s\S]*?value="input"/.test(html),
-    "generator selector uses three labelled native radios with Button selected",
+      /id="generator-input"[\s\S]*?type="radio"[\s\S]*?value="input"/.test(html) &&
+      /id="generator-flexbox"[\s\S]*?type="radio"[\s\S]*?value="flexbox"/.test(html),
+    "generator selector uses four labelled native radios with Button selected",
   );
   check(
     cardControlIds.every((id) => {
@@ -1097,8 +1473,31 @@ async function run() {
     "all Card property controls are enabled",
   );
   check(
-    (html.match(/<input\b[^>]*\bname="generator"[^>]*>/g) || []).length === 3,
-    "markup contains exactly three generator radios",
+    (html.match(/<input\b[^>]*\bname="generator"[^>]*>/g) || []).length === 4,
+    "markup contains exactly four generator radios",
+  );
+  check(
+    !/<input[^>]*id="generator-flexbox"[^>]*\bdisabled\b/.test(html),
+    "Flexbox generator radio is enabled",
+  );
+  check(
+    flexboxControlIds.every((id) => {
+      const control = html.match(new RegExp(`<(?:input|select)[^>]*id="${id}"[^>]*>`))?.[0] || "";
+      return !/\bdisabled\b/.test(control);
+    }),
+    "all five Flexbox controls are enabled",
+  );
+  check(
+    /<select[^>]*id="flex-direction"[^>]*>[\s\S]*?<option value="row" selected>row<\/option>[\s\S]*?row-reverse[\s\S]*?column[\s\S]*?column-reverse[\s\S]*?<\/select>/.test(html) &&
+      /<select[^>]*id="justify-content"[^>]*>[\s\S]*?<option value="flex-start" selected>flex-start<\/option>[\s\S]*?space-evenly[\s\S]*?<\/select>/.test(html) &&
+      /<select[^>]*id="align-items"[^>]*>[\s\S]*?<option value="stretch" selected>stretch<\/option>[\s\S]*?baseline[\s\S]*?<\/select>/.test(html) &&
+      /<select[^>]*id="flex-wrap"[^>]*>[\s\S]*?<option value="nowrap" selected>nowrap<\/option>[\s\S]*?wrap-reverse[\s\S]*?<\/select>/.test(html),
+    "Flexbox selects expose the exact locked options and displayed defaults",
+  );
+  check(
+    /<input[^>]*id="flex-gap"[^>]*type="range"[^>]*min="0"[^>]*max="64"[^>]*step="1"[^>]*value="16"/.test(html) &&
+      /id="flex-gap-output"[^>]*>16px<\/output>/.test(html),
+    "Flexbox Gap is one enabled 0–64 range with a 16px displayed default",
   );
   check(
     inputBaseControlIds.every((id) => {
@@ -1153,6 +1552,23 @@ async function run() {
     "Input controls and preview start hidden",
   );
   check(
+    html.includes('data-generator-controls="flexbox" hidden') &&
+      /data-generator-preview="flexbox"[\s\S]*?aria-hidden="true"[\s\S]*?hidden/.test(html),
+    "Flexbox controls and decorative preview start natively hidden",
+  );
+  const flexboxPreviewMarkup = html.match(
+    /<div\s+class="generated-flexbox"[\s\S]*?data-generator-preview="flexbox"[\s\S]*?<div class="flex-item">1<\/div>\s*<div class="flex-item">2<\/div>\s*<div class="flex-item">3<\/div>\s*<div class="flex-item">4<\/div>\s*<div class="flex-item">5<\/div>\s*<\/div>/,
+  )?.[0] || "";
+  check(
+    (html.match(/class="flex-item"/g) || []).length === 5,
+    "Flexbox preview contains exactly five static items",
+  );
+  check(
+    flexboxPreviewMarkup.includes('tabindex="-1"') &&
+      !/<(?:button|input|select|a)\b/.test(flexboxPreviewMarkup),
+    "scroll-contained Flexbox preview and its items are absent from sequential interaction",
+  );
+  check(
     /<label[^>]*for="generated-input"[^>]*>Email address<\/label>/.test(html) &&
       /<input[\s\S]*?id="generated-input"[\s\S]*?type="text"[\s\S]*?placeholder="name@example.com"[\s\S]*?>/.test(html) &&
       !/<input[^>]*id="generated-input"[^>]*\bdisabled\b/.test(html),
@@ -1172,8 +1588,34 @@ async function run() {
   check(css.includes(":focus-visible"), "focus-visible styling remains extracted");
   check(css.includes(".generator-input:focus-visible + label"), "generator focus is visibly styled");
   check(
-    /\.generator-options\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/.test(css),
-    "selector layout accommodates three equal options",
+    /\.generator-options\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/.test(css) &&
+      /\.generator-options label\s*\{[\s\S]*?padding:\s*7px 4px;/.test(css),
+    "selector layout accommodates four compact equal options",
+  );
+  check(
+    /select\s*\{[\s\S]*?width:\s*100%;[\s\S]*?border:\s*1px solid var\(--line-strong\);/.test(css) &&
+      css.includes(":focus-visible"),
+    "native Flexbox selects retain visible shared focus styling",
+  );
+  check(
+    /\.generated-flexbox\s*\{[\s\S]*?display:\s*flex;[\s\S]*?flex-direction:\s*row;[\s\S]*?justify-content:\s*flex-start;[\s\S]*?align-items:\s*stretch;[\s\S]*?flex-wrap:\s*nowrap;[\s\S]*?gap:\s*16px;/.test(css) &&
+      /box-sizing:\s*border-box;[\s\S]*?width:\s*min\(340px, 100%\);[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;[\s\S]*?height:\s*340px;[\s\S]*?overflow:\s*auto;/.test(css) &&
+      /\.flex-item\s*\{[\s\S]*?flex:\s*0 0 48px;[\s\S]*?min-width:\s*48px;[\s\S]*?min-height:\s*48px;[\s\S]*?margin:\s*0;/.test(css),
+    "Flexbox preview uses symmetric, contained preview-only scaffolding",
+  );
+  check(
+    /\.flex-item:nth-child\(2\)\s*\{[\s\S]*?font-size:\s*18px;/.test(css) &&
+      /\.flex-item:nth-child\(4\)\s*\{[\s\S]*?font-size:\s*12px;/.test(css),
+    "Flexbox preview preserves differing text metrics for baseline alignment",
+  );
+  const flexItemRule = css.match(/\.flex-item\s*\{([^}]*)\}/)?.[1] || "";
+  check(
+    /margin:\s*0;/.test(flexItemRule) && !/margin-(?:top|right|bottom|left)/.test(flexItemRule),
+    "Flexbox preview items have no margin that can distort Gap",
+  );
+  check(
+    !/(previewFlexbox|flexboxPreview)\.(?:append|appendChild|prepend|replaceChildren|insertBefore|removeChild)|createElement\([^)]*flex/i.test(script),
+    "Flexbox rendering never reconstructs preview children",
   );
   check(
     /\.generated-input-preview\s*\{[\s\S]*?width:\s*min\(360px, 100%\)/.test(css),
@@ -1206,8 +1648,33 @@ async function run() {
   );
   check(!/(\beval\s*\(|\bFunction\s*\()/.test(script), "script has no dynamic code execution");
   check(
-    !/INPUT_OUTPUT_PLACEHOLDER|Input generator coming in Task 3|Input CSS generation is coming in Task 3/.test(script + html),
-    "Task 2 Input placeholder and unavailable behavior are removed",
+    !/OUTPUT_PLACEHOLDER|generator coming in Task 3|CSS generation is coming in Task 3/.test(script + html),
+    "Task 2 placeholder and unavailable behavior are removed",
+  );
+  check(
+    !/generatorName === "flexbox"/.test(script) &&
+      !/FLEXBOX_OUTPUT_PLACEHOLDER|FLEXBOX_UNAVAILABLE_STATUS|copyButton\.disabled = true/.test(script),
+    "functional Flexbox uses shared switching with no dead shell branch",
+  );
+  check(
+    /flexbox:\s*\{\s*flexDirection:\s*"row",\s*justifyContent:\s*"flex-start",\s*alignItems:\s*"stretch",\s*flexWrap:\s*"nowrap",\s*gap:\s*16,\s*\}/.test(script) &&
+      /flexbox:\s*\{[\s\S]*?numericControls:\s*flexboxNumericControls,[\s\S]*?enumControls:\s*flexboxEnumControls,[\s\S]*?renderPreview:\s*renderFlexboxPreview,[\s\S]*?generateCSS:\s*generateFlexboxCSS,[\s\S]*?outputFilename:\s*"flexbox\.css"/.test(script),
+    "Flexbox has exactly the required flat state and an ordinary generator definition",
+  );
+  check(
+    /function\s+normalizeEnum\(value, allowedValues, fallback\)/.test(script) &&
+      /Object\.entries\(definition\.enumControls \?\? \{\}\)/.test(script) &&
+      /addEventListener\("change"/.test(script),
+    "shared optional enumControls use generic allow-list normalization and native change events",
+  );
+  check(
+    /function\s+renderFlexboxPreview\(flexboxState\)[\s\S]*?style\.display = "flex";[\s\S]*?style\.flexDirection[\s\S]*?style\.justifyContent[\s\S]*?style\.alignItems[\s\S]*?style\.flexWrap[\s\S]*?style\.gap/.test(script) &&
+      /initializeGeneratorControls\(["']flexbox["']\)/.test(script),
+    "Flexbox controls and six preview styles are wired through shared initialization",
+  );
+  check(
+    !/(displayControl|childState|children:\s*\[|itemCount|itemSize|alignContent|rowGap|columnGap|flexGrow|flexShrink|flexBasis|alignSelf)/.test(script),
+    "Flexbox adds no Display control, child state, or out-of-scope property",
   );
   check(
     /input:\s*\{[\s\S]*?numericControls:\s*inputNumericControls,[\s\S]*?colorControls:\s*inputColorControls,[\s\S]*?renderPreview:\s*renderInputPreview,[\s\S]*?generateCSS:\s*generateInputCSS,[\s\S]*?outputFilename:\s*"input\.css"/.test(script),
@@ -1263,26 +1730,52 @@ async function run() {
   check(readme.includes("## Overview"), "README includes a current overview");
   check(readme.includes("## Current generators"), "README documents current generators");
   check(
-    readme.includes("### Button") && readme.includes("### Card") && readme.includes("### Input"),
-    "README documents Button, Card, and Input",
+    readme.includes("### Button") && readme.includes("### Card") && readme.includes("### Input") && readme.includes("### Flexbox"),
+    "README documents all four generators",
   );
   check(readme.includes("## Architecture"), "README explains the generator architecture");
   check(readme.includes("## Usage") && readme.includes("node tests/regression.cjs"), "README documents usage and tests");
-  check(readme.includes("**Pulsar V3 — Interactive Input**"), "README reports the final V3 release status");
+  check(readme.includes("**Pulsar V4 — Flexbox Layout**"), "README reports the final V4 release status");
   check(
-    readme.includes("Base typography") &&
-      readme.includes("Focus border color") &&
+    readme.includes("Eight controls") &&
+      readme.includes("Seven controls") &&
+      readme.includes("Eight Base controls") &&
+      readme.includes("Four Focus controls") &&
+      readme.includes("Five container-level controls"),
+    "README states the released control scope for all four generators",
+  );
+  check(
+    readme.includes("flex-grow") &&
+      readme.includes("flex-shrink") &&
+      readme.includes("flex-basis") &&
+      readme.includes("order") &&
+      readme.includes("align-self") &&
+      readme.includes("align-content"),
+    "README distinguishes Flexbox container output from unsupported child and content controls",
+  );
+  check(
+    readme.includes("## Accessibility and responsive behavior") &&
+      readme.includes("labelled native controls") &&
+      readme.includes("stacks at narrower widths"),
+    "README documents accessibility and responsive behavior",
+  );
+  check(
+    readme.includes("Eight Base controls") &&
+      readme.includes("Four Focus controls") &&
       readme.includes("native input") &&
       readme.includes("`.input`") &&
       readme.includes("`.input:focus`"),
     "README explains Input Base controls, Focus controls, native focus, and both output rules",
   );
-  check(!/Pulsar V1|Pulsar V2|future areas include an Input generator/.test(readme), "README contains no stale pre-Input claims");
+  check(
+    !/Pulsar V1|Pulsar V2|V3 current release|Task [3456] (?:complete|pending)|Flexbox coming soon|future areas include an Input generator/.test(readme),
+    "README contains no stale pre-V4 or task-status claims",
+  );
   check(
     html.includes(
-      'content="Pulsar is a focused visual CSS generator for building Button, Card, and Input styles."',
+      'content="Pulsar is a focused visual CSS generator for building Button, Card, Input, and Flexbox styles."',
     ),
-    "Page metadata identifies all three stabilized generators",
+    "Page metadata identifies all four generators",
   );
 
   if (failures.length > 0) {

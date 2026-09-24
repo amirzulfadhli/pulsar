@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Pulsar is a focused visual CSS generator for building Button, Card, and Input styles."
+      content="Pulsar is a focused visual CSS generator for building Button, Card, Input, and Flexbox styles."
     />
     <title>Pulsar — Visual CSS Generator</title>
 
@@ -50,6 +50,14 @@
                 value="input"
               />
               <label for="generator-input">Input</label>
+              <input
+                class="generator-input"
+                id="generator-flexbox"
+                name="generator"
+                type="radio"
+                value="flexbox"
+              />
+              <label for="generator-flexbox">Flexbox</label>
             </div>
           </fieldset>
 
@@ -241,6 +249,63 @@
               </div>
             </section>
           </div>
+
+          <div class="generator-controls" data-generator-controls="flexbox" hidden>
+            <section class="control-group" aria-labelledby="flexbox-layout-heading">
+              <h3 class="control-heading" id="flexbox-layout-heading">Layout</h3>
+              <div class="field">
+                <label for="flex-direction">Flex direction</label>
+                <select id="flex-direction" name="flexDirection">
+                  <option value="row" selected>row</option>
+                  <option value="row-reverse">row-reverse</option>
+                  <option value="column">column</option>
+                  <option value="column-reverse">column-reverse</option>
+                </select>
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="flexbox-alignment-heading">
+              <h3 class="control-heading" id="flexbox-alignment-heading">Alignment</h3>
+              <div class="field">
+                <label for="justify-content">Justify content</label>
+                <select id="justify-content" name="justifyContent">
+                  <option value="flex-start" selected>flex-start</option>
+                  <option value="center">center</option>
+                  <option value="flex-end">flex-end</option>
+                  <option value="space-between">space-between</option>
+                  <option value="space-around">space-around</option>
+                  <option value="space-evenly">space-evenly</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="align-items">Align items</label>
+                <select id="align-items" name="alignItems">
+                  <option value="stretch" selected>stretch</option>
+                  <option value="flex-start">flex-start</option>
+                  <option value="center">center</option>
+                  <option value="flex-end">flex-end</option>
+                  <option value="baseline">baseline</option>
+                </select>
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="flexbox-flow-heading">
+              <h3 class="control-heading" id="flexbox-flow-heading">Flow</h3>
+              <div class="field">
+                <label for="flex-wrap">Flex wrap</label>
+                <select id="flex-wrap" name="flexWrap">
+                  <option value="nowrap" selected>nowrap</option>
+                  <option value="wrap">wrap</option>
+                  <option value="wrap-reverse">wrap-reverse</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="flex-gap">Gap</label>
+                <output class="field-output" id="flex-gap-output" for="flex-gap">16px</output>
+                <input id="flex-gap" name="flexGap" type="range" min="0" max="64" step="1" value="16" />
+              </div>
+            </section>
+          </div>
         </form>
       </aside>
 
@@ -267,6 +332,19 @@
               type="text"
               placeholder="name@example.com"
             />
+          </div>
+          <div
+            class="generated-flexbox"
+            data-generator-preview="flexbox"
+            aria-hidden="true"
+            tabindex="-1"
+            hidden
+          >
+            <div class="flex-item">1</div>
+            <div class="flex-item">2</div>
+            <div class="flex-item">3</div>
+            <div class="flex-item">4</div>
+            <div class="flex-item">5</div>
           </div>
         </div>
 
