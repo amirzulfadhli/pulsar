@@ -90,7 +90,12 @@ const ids = [
   "input-focus-outline-offset", "input-focus-outline-offset-output",
   "flex-direction", "justify-content", "align-items", "flex-wrap",
   "flex-gap", "flex-gap-output",
-  "generator-name", "generator-button", "generator-card", "generator-input", "generator-flexbox",
+  "grid-columns", "grid-columns-output",
+  "grid-rows", "grid-rows-output",
+  "grid-column-gap", "grid-column-gap-output",
+  "grid-row-gap", "grid-row-gap-output",
+  "grid-justify-items", "grid-align-items",
+  "generator-name", "generator-button", "generator-card", "generator-input", "generator-flexbox", "generator-grid",
   "generated-css", "copy-css", "copy-status",
 ];
 
@@ -101,12 +106,23 @@ elements["generator-button"].checked = true;
 elements["generator-card"].value = "card";
 elements["generator-input"].value = "input";
 elements["generator-flexbox"].value = "flexbox";
+elements["generator-grid"].value = "grid";
 elements["flex-direction"].value = "row";
 elements["justify-content"].value = "flex-start";
 elements["align-items"].value = "stretch";
 elements["flex-wrap"].value = "nowrap";
 elements["flex-gap"].value = "16";
 elements["flex-gap-output"].textContent = "16px";
+elements["grid-columns"].value = "3";
+elements["grid-columns-output"].textContent = "3";
+elements["grid-rows"].value = "2";
+elements["grid-rows-output"].textContent = "2";
+elements["grid-column-gap"].value = "16";
+elements["grid-column-gap-output"].textContent = "16px";
+elements["grid-row-gap"].value = "16";
+elements["grid-row-gap-output"].textContent = "16px";
+elements["grid-justify-items"].value = "stretch";
+elements["grid-align-items"].value = "stretch";
 const inputBaseControlIds = [
   "input-font-size",
   "input-vertical-padding",
@@ -137,6 +153,15 @@ flexboxPreview.dataset.generatorPreview = "flexbox";
 flexboxPreview.hidden = true;
 flexboxPreview.children = Array.from({ length: 5 }, (_, index) => new MockElement(`flex-item-${index + 1}`));
 const originalFlexboxChildren = [...flexboxPreview.children];
+const gridPreview = new MockElement("grid-preview");
+gridPreview.dataset.generatorPreview = "grid";
+gridPreview.hidden = true;
+gridPreview.children = Array.from({ length: 96 }, (_, index) => {
+  const child = new MockElement(`grid-item-${index + 1}`);
+  child.hidden = index >= 6;
+  return child;
+});
+const originalGridChildren = [...gridPreview.children];
 const buttonControlView = new MockElement("button-controls");
 buttonControlView.dataset.generatorControls = "button";
 const cardControlView = new MockElement("card-controls");
@@ -148,6 +173,9 @@ inputControlView.hidden = true;
 const flexboxControlView = new MockElement("flexbox-controls");
 flexboxControlView.dataset.generatorControls = "flexbox";
 flexboxControlView.hidden = true;
+const gridControlView = new MockElement("grid-controls");
+gridControlView.dataset.generatorControls = "grid";
+gridControlView.hidden = true;
 const outputFilename = new MockElement("output-filename");
 const temporaryElements = [];
 const fallbackWrites = [];
@@ -161,6 +189,7 @@ const document = {
     if (selector === ".generated-card") return cardPreview;
     if (selector === ".generated-input") return inputPreviewControl;
     if (selector === ".generated-flexbox") return flexboxPreview;
+    if (selector === ".generated-grid") return gridPreview;
     if (selector === ".output-toolbar-label") return outputFilename;
     throw new Error(`Unexpected selector: ${selector}`);
   },
@@ -171,13 +200,14 @@ const document = {
         elements["generator-card"],
         elements["generator-input"],
         elements["generator-flexbox"],
+        elements["generator-grid"],
       ];
     }
     if (selector === "[data-generator-controls]") {
-      return [buttonControlView, cardControlView, inputControlView, flexboxControlView];
+      return [buttonControlView, cardControlView, inputControlView, flexboxControlView, gridControlView];
     }
     if (selector === "[data-generator-preview]") {
-      return [preview, cardPreview, inputPreview, flexboxPreview];
+      return [preview, cardPreview, inputPreview, flexboxPreview, gridPreview];
     }
     throw new Error(`Unexpected selector: ${selector}`);
   },
@@ -219,6 +249,11 @@ vm.runInContext(
     generateFlexboxCSS,
     flexboxNumericControls,
     flexboxEnumControls,
+    normalizeNumber,
+    renderGridPreview,
+    generateGridCSS,
+    gridNumericControls,
+    gridEnumControls,
     switchGenerator,
     generatedCSS: () => generatedCSS,
   };`,
@@ -306,6 +341,18 @@ function expectedFlexboxCSS(state) {
 }`;
 }
 
+function expectedGridCSS(state) {
+  return `.grid {
+  display: grid;
+  grid-template-columns: repeat(${state.columns}, 1fr);
+  grid-template-rows: repeat(${state.rows}, 1fr);
+  column-gap: ${state.columnGap}px;
+  row-gap: ${state.rowGap}px;
+  justify-items: ${state.justifyItems};
+  align-items: ${state.alignItems};
+}`;
+}
+
 function checkButtonSynchronization(label) {
   const state = context.testApi.state.generators.button;
   const generatedCSS = context.testApi.generatedCSS();
@@ -383,12 +430,40 @@ function checkFlexboxSynchronization(label) {
   check(elements["flex-gap-output"].textContent === `${flexboxState.gap}px`, `${label}: Gap output matches state`);
 }
 
+function checkGridSynchronization(label) {
+  const gridState = context.testApi.state.generators.grid;
+  const generatedCSS = context.testApi.generatedCSS();
+  const visibleCount = gridState.columns * gridState.rows;
+  const previewMatches =
+    gridPreview.style.display === "grid" &&
+    gridPreview.style.gridTemplateColumns === `repeat(${gridState.columns}, 1fr)` &&
+    gridPreview.style.gridTemplateRows === `repeat(${gridState.rows}, 1fr)` &&
+    gridPreview.style.columnGap === `${gridState.columnGap}px` &&
+    gridPreview.style.rowGap === `${gridState.rowGap}px` &&
+    gridPreview.style.justifyItems === gridState.justifyItems &&
+    gridPreview.style.alignItems === gridState.alignItems;
+
+  check(previewMatches, `${label}: Grid preview parent styles match state`);
+  check(
+    gridPreview.children.filter((child) => !child.hidden).length === visibleCount &&
+      gridPreview.children.every((child, index) => child.hidden === (index >= visibleCount)),
+    `${label}: exactly columns times rows items are visible`,
+  );
+  check(generatedCSS === expectedGridCSS(gridState), `${label}: Grid CSS matches state exactly`);
+  check(elements["generated-css"].textContent === generatedCSS, `${label}: displayed Grid CSS is authoritative`);
+  check(elements["grid-columns-output"].textContent === String(gridState.columns), `${label}: Columns output matches state`);
+  check(elements["grid-rows-output"].textContent === String(gridState.rows), `${label}: Rows output matches state`);
+  check(elements["grid-column-gap-output"].textContent === `${gridState.columnGap}px`, `${label}: Column gap output matches state`);
+  check(elements["grid-row-gap-output"].textContent === `${gridState.rowGap}px`, `${label}: Row gap output matches state`);
+}
+
 async function run() {
   const rootState = context.testApi.state;
   const buttonState = rootState.generators.button;
   const cardState = rootState.generators.card;
   const inputState = rootState.generators.input;
   const flexboxState = rootState.generators.flexbox;
+  const gridState = rootState.generators.grid;
   const copyButton = elements["copy-css"];
   const copyStatus = elements["copy-status"];
 
@@ -401,10 +476,12 @@ async function run() {
       "input-border-radius", "input-border-width", "input-background-color", "input-text-color",
       "input-border-color", "input-focus-border-color", "input-focus-outline-width",
       "input-focus-outline-color", "input-focus-outline-offset", "flex-gap",
+      "grid-columns", "grid-rows", "grid-column-gap", "grid-row-gap",
     ],
     change: [
       "flex-direction", "justify-content", "align-items", "flex-wrap", "generator-button",
-      "generator-card", "generator-input", "generator-flexbox",
+      "grid-justify-items", "grid-align-items", "generator-card", "generator-input",
+      "generator-flexbox", "generator-grid",
     ],
     click: ["copy-css"],
   };
@@ -470,15 +547,26 @@ async function run() {
     }),
     "Flexbox state contains exactly the five required defaults",
   );
+  check(
+    JSON.stringify(gridState) === JSON.stringify({
+      columns: 3,
+      rows: 2,
+      columnGap: 16,
+      rowGap: 16,
+      justifyItems: "stretch",
+      alignItems: "stretch",
+    }),
+    "Grid state contains exactly the six required defaults",
+  );
   check(flexboxPreview.children.length === 5, "Flexbox preview harness retains exactly five children");
   check(rootState.activeGenerator === "button", "Button is the default active generator");
   check(
-    JSON.stringify(Object.keys(rootState.generators)) === JSON.stringify(["button", "card", "input", "flexbox"]),
-    "state contains four independent generators",
+    JSON.stringify(Object.keys(rootState.generators)) === JSON.stringify(["button", "card", "input", "flexbox", "grid"]),
+    "state contains five independent generators",
   );
   check(
-    JSON.stringify(Object.keys(context.testApi.generatorDefinitions)) === JSON.stringify(["button", "card", "input", "flexbox"]),
-    "dispatch table contains all four generator definitions",
+    JSON.stringify(Object.keys(context.testApi.generatorDefinitions)) === JSON.stringify(["button", "card", "input", "flexbox", "grid"]),
+    "dispatch table contains all five generator definitions",
   );
   check(
     context.testApi.normalizeEnum("column", ["row", "column"], "row") === "column" &&
@@ -976,30 +1064,35 @@ async function run() {
     card: elements["generator-card"],
     input: elements["generator-input"],
     flexbox: elements["generator-flexbox"],
+    grid: elements["generator-grid"],
   };
   const controlViews = {
     button: buttonControlView,
     card: cardControlView,
     input: inputControlView,
     flexbox: flexboxControlView,
+    grid: gridControlView,
   };
   const previewViews = {
     button: preview,
     card: cardPreview,
     input: inputPreview,
     flexbox: flexboxPreview,
+    grid: gridPreview,
   };
   const expectedFilenames = {
     button: "button.css",
     card: "card.css",
     input: "input.css",
     flexbox: "flexbox.css",
+    grid: "grid.css",
   };
   const expectedGenerators = {
     button: expectedButtonCSS,
     card: expectedCardCSS,
     input: expectedInputCSS,
     flexbox: expectedFlexboxCSS,
+    grid: expectedGridCSS,
   };
 
   function selectTestGenerator(generatorName) {
@@ -1421,6 +1514,653 @@ async function run() {
     check(copyStatus.textContent.includes("select the CSS manually"), `${generatorName}: fallback failure is truthful`);
   }
 
+  const defaultGridCSS = `.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  column-gap: 16px;
+  row-gap: 16px;
+  justify-items: stretch;
+  align-items: stretch;
+}`;
+  const v4StateBeforeGrid = Object.fromEntries(
+    generatorNames.map((generatorName) => [generatorName, JSON.stringify(rootState.generators[generatorName])]),
+  );
+
+  selectTestGenerator("grid");
+  checkActiveConsistency("grid", "first Grid visit");
+  checkGridSynchronization("Grid defaults");
+  check(context.testApi.generatedCSS() === defaultGridCSS, "Grid default CSS is exact and ordered");
+  check(
+    context.testApi.generatorDefinitions.grid.numericControls === context.testApi.gridNumericControls &&
+      context.testApi.generatorDefinitions.grid.enumControls === context.testApi.gridEnumControls &&
+      context.testApi.generatorDefinitions.grid.renderPreview === context.testApi.renderGridPreview &&
+      context.testApi.generatorDefinitions.grid.generateCSS === context.testApi.generateGridCSS &&
+      context.testApi.generatorDefinitions.grid.outputFilename === "grid.css",
+    "Grid definition uses the shared numeric, enum, render, output, and filename architecture",
+  );
+  check(
+    JSON.stringify(Object.keys(context.testApi.gridNumericControls)) ===
+      JSON.stringify(["columns", "rows", "columnGap", "rowGap"]) &&
+      context.testApi.gridNumericControls.columns.integer === true &&
+      context.testApi.gridNumericControls.rows.integer === true &&
+      !context.testApi.gridNumericControls.columnGap.integer &&
+      !context.testApi.gridNumericControls.rowGap.integer &&
+      Object.values(context.testApi.gridNumericControls).every((control) => control.step === 1),
+    "only Grid Columns and Rows opt into integer numeric normalization",
+  );
+
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  check(clipboardCalls.at(-1) === defaultGridCSS, "Grid default Copy uses exact authoritative CSS");
+  check(copyStatus.textContent === "CSS copied", "Grid default Copy reports success");
+
+  for (let value = 1; value <= 12; value += 1) {
+    elements["grid-columns"].input(String(value));
+    check(gridState.columns === value, `Columns accepts integer ${value}`);
+    check(elements["grid-columns"].value === value, `Columns control restores normalized integer ${value}`);
+    checkGridSynchronization(`Columns ${value}`);
+  }
+  for (let value = 1; value <= 8; value += 1) {
+    elements["grid-rows"].input(String(value));
+    check(gridState.rows === value, `Rows accepts integer ${value}`);
+    check(elements["grid-rows"].value === value, `Rows control restores normalized integer ${value}`);
+    checkGridSynchronization(`Rows ${value}`);
+  }
+
+  elements["grid-columns"].input("3");
+  for (const value of ["1.5", "2.5", "7.25", "11.9"]) {
+    elements["grid-columns"].input(value);
+    check(gridState.columns === 3, `Columns rejects in-range fraction ${value} without changing state`);
+    check(elements["grid-columns"].value === 3, `Columns restores previous value after fraction ${value}`);
+    checkGridSynchronization(`Columns fraction ${value} rejection`);
+  }
+  elements["grid-rows"].input("3");
+  for (const value of ["1.5", "2.5", "7.25"]) {
+    elements["grid-rows"].input(value);
+    check(gridState.rows === 3, `Rows rejects in-range fraction ${value} without changing state`);
+    check(elements["grid-rows"].value === 3, `Rows restores previous value after fraction ${value}`);
+    checkGridSynchronization(`Rows fraction ${value} rejection`);
+  }
+
+  for (const [id, property, maximum] of [
+    ["grid-columns", "columns", 12],
+    ["grid-rows", "rows", 8],
+  ]) {
+    elements[id].input("4");
+    for (const invalidValue of ["", "malformed", "NaN", "Infinity", "-Infinity"]) {
+      elements[id].input(invalidValue);
+      check(gridState[property] === 4, `${property} preserves its valid value for ${invalidValue || "empty input"}`);
+      check(elements[id].value === 4, `${property} restores its control for ${invalidValue || "empty input"}`);
+    }
+    elements[id].input("-3");
+    check(gridState[property] === 1, `${property} clamps negative values to its minimum`);
+    elements[id].input("-1.5");
+    check(gridState[property] === 1, `${property} clamps finite fractional values below its minimum`);
+    elements[id].input(String(maximum + 20));
+    check(gridState[property] === maximum, `${property} clamps excessive values to its maximum`);
+    elements[id].input(String(maximum + 0.9));
+    check(gridState[property] === maximum, `${property} clamps finite fractional values above its maximum`);
+    checkGridSynchronization(`${property} invalid and boundary handling`);
+  }
+
+  for (const [id, property] of [
+    ["grid-column-gap", "columnGap"],
+    ["grid-row-gap", "rowGap"],
+  ]) {
+    for (const value of [0, 9, 16, 41, 64]) {
+      elements[id].input(String(value));
+      check(gridState[property] === value, `${property} accepts ${value}`);
+      checkGridSynchronization(`${property} ${value}`);
+    }
+    elements[id].input("12.5");
+    check(gridState[property] === 12.5, `${property} retains ordinary fractional numeric semantics`);
+    elements[id].input("-1");
+    check(gridState[property] === 0, `${property} clamps below zero`);
+    elements[id].input("65");
+    check(gridState[property] === 64, `${property} clamps above 64`);
+  }
+  elements["grid-column-gap"].input("23");
+  const rowGapBeforeIndependentEdit = gridState.rowGap;
+  check(gridState.columnGap === 23 && gridState.rowGap === rowGapBeforeIndependentEdit, "Column gap edits cannot modify Row gap");
+  elements["grid-row-gap"].input("37");
+  check(gridState.columnGap === 23 && gridState.rowGap === 37, "Row gap edits cannot modify Column gap");
+
+  const ordinaryButtonValue = buttonState.fontSize;
+  selectTestGenerator("button");
+  elements["font-size"].input("17.5");
+  check(buttonState.fontSize === 17.5, "ordinary Button numeric controls still accept representative fractions");
+  elements["font-size"].input(String(ordinaryButtonValue));
+  selectTestGenerator("grid");
+
+  const gridEnumCases = [
+    ["grid-justify-items", "justifyItems"],
+    ["grid-align-items", "alignItems"],
+  ];
+  for (const [id, property] of gridEnumCases) {
+    check(
+      JSON.stringify(context.testApi.gridEnumControls[property].allowedValues) ===
+        JSON.stringify(["stretch", "start", "center", "end"]),
+      `${property} exposes the exact allow-list`,
+    );
+    for (const value of ["stretch", "start", "center", "end"]) {
+      elements[id].changeValue(value);
+      check(gridState[property] === value, `${property} accepts ${value}`);
+      check(elements[id].value === value, `${property} control reflects ${value}`);
+      checkGridSynchronization(`${property} ${value}`);
+    }
+    const previousValidValue = gridState[property];
+    elements[id].changeValue("malformed-value");
+    check(gridState[property] === previousValidValue, `${property} preserves its previous valid value`);
+    check(elements[id].value === previousValidValue, `${property} restores its previous valid control value`);
+    checkGridSynchronization(`${property} malformed protection`);
+  }
+
+  elements["grid-columns"].input("12");
+  elements["grid-rows"].input("8");
+  elements["grid-column-gap"].input("64");
+  elements["grid-row-gap"].input("64");
+  elements["grid-justify-items"].changeValue("end");
+  elements["grid-align-items"].changeValue("center");
+  const modifiedGridCSS = `.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  column-gap: 64px;
+  row-gap: 64px;
+  justify-items: end;
+  align-items: center;
+}`;
+  check(context.testApi.generatedCSS() === modifiedGridCSS, "required non-default Grid CSS is exact and ordered");
+  check(
+    !/(?:^|\n)\s*(?:width|height|max-width|min-width|overflow|box-sizing|padding|border|background|grid-auto-[a-z-]+):/m.test(modifiedGridCSS) &&
+      !/grid-item|item visibility|item labels/i.test(modifiedGridCSS),
+    "Grid CSS excludes preview scaffolding, item styling, and implicit-grid properties",
+  );
+  checkGridSynchronization("required non-default Grid configuration");
+  check(
+    gridPreview.children.length === 96 &&
+      gridPreview.children.every((child, index) => child === originalGridChildren[index]),
+    "Grid rendering retains the same 96 static preview nodes",
+  );
+  check(gridPreview.children.every((child) => !child.hidden), "12 by 8 Grid exposes all 96 static items");
+
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  check(clipboardCalls.at(-1) === modifiedGridCSS, "Grid modified Copy uses exact authoritative CSS");
+  check(copyStatus.textContent === "CSS copied", "Grid modified Copy reports success");
+
+  elements["grid-column-gap"].input("32");
+  check(copyStatus.textContent === "CSS ready to copy.", "Grid numeric edit invalidates copied feedback");
+  const staleGridNumeric = deferred();
+  setClipboard(() => staleGridNumeric.promise);
+  const pendingGridNumericCopy = copyButton.click();
+  elements["grid-row-gap"].input("31");
+  staleGridNumeric.resolve();
+  await pendingGridNumericCopy;
+  check(copyStatus.textContent === "CSS ready to copy.", "delayed Grid copy cannot overwrite numeric-edit feedback");
+
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  elements["grid-justify-items"].changeValue("start");
+  check(copyStatus.textContent === "CSS ready to copy.", "Grid enum edit invalidates copied feedback");
+  const staleGridEnum = deferred();
+  setClipboard(() => staleGridEnum.promise);
+  const pendingGridEnumCopy = copyButton.click();
+  elements["grid-align-items"].changeValue("end");
+  staleGridEnum.reject(new Error("late Grid enum copy failure"));
+  await pendingGridEnumCopy;
+  check(copyStatus.textContent === "CSS ready to copy.", "delayed Grid failure cannot overwrite enum-edit feedback");
+
+  const preservedGridState = JSON.stringify(gridState);
+  const preservedGridCSS = context.testApi.generatedCSS();
+  for (const v4Generator of generatorNames) {
+    selectTestGenerator(v4Generator);
+    check(
+      JSON.stringify(rootState.generators[v4Generator]) === v4StateBeforeGrid[v4Generator],
+      `${v4Generator} state survives functional Grid edits`,
+    );
+    checkActiveConsistency(v4Generator, `${v4Generator} restored from Grid`);
+    selectTestGenerator("grid");
+    check(JSON.stringify(gridState) === preservedGridState, `Grid state survives ${v4Generator} round trip`);
+    check(context.testApi.generatedCSS() === preservedGridCSS, `Grid CSS survives ${v4Generator} round trip`);
+    checkGridSynchronization(`Grid restored from ${v4Generator}`);
+  }
+
+  const multiGeneratorRoute = ["button", "card", "input", "flexbox", "grid", "button"];
+  multiGeneratorRoute.forEach(selectTestGenerator);
+  checkActiveConsistency("button", "five-generator route destination");
+  check(JSON.stringify(gridState) === preservedGridState, "Grid state survives the five-generator route");
+  generatorNames.forEach((generatorName) => {
+    check(
+      JSON.stringify(rootState.generators[generatorName]) === v4StateBeforeGrid[generatorName],
+      `${generatorName} state survives the five-generator route`,
+    );
+  });
+
+  const gridClipboardPairs = generatorNames.flatMap((generatorName) => [
+    ["grid", generatorName],
+    [generatorName, "grid"],
+  ]);
+  for (const [source, destination] of gridClipboardPairs) {
+    selectTestGenerator(source);
+    const sourceCSS = context.testApi.generatedCSS();
+    const delayedSuccess = deferred();
+    setClipboard(() => delayedSuccess.promise);
+    const pendingSuccess = copyButton.click();
+    selectTestGenerator(destination);
+    delayedSuccess.resolve();
+    await pendingSuccess;
+    check(clipboardCalls.at(-1) === sourceCSS, `${source} to ${destination}: pending success retains source CSS`);
+    check(copyStatus.textContent === "CSS ready to copy.", `${source} to ${destination}: stale success cannot replace ready feedback`);
+    checkActiveConsistency(destination, `${source} to ${destination} success-race destination`);
+
+    selectTestGenerator(source);
+    const delayedFailure = deferred();
+    fallbackResult = false;
+    setClipboard(() => delayedFailure.promise);
+    const pendingFailure = copyButton.click();
+    selectTestGenerator(destination);
+    delayedFailure.reject(new Error(`${source} to ${destination} delayed failure`));
+    await pendingFailure;
+    check(copyStatus.textContent === "CSS ready to copy.", `${source} to ${destination}: stale failure cannot replace ready feedback`);
+    checkActiveConsistency(destination, `${source} to ${destination} failure-race destination`);
+  }
+
+  selectTestGenerator("grid");
+  elements["grid-columns"].input("12");
+  elements["grid-rows"].input("8");
+  elements["grid-column-gap"].input("64");
+  elements["grid-row-gap"].input("64");
+  elements["grid-justify-items"].changeValue("end");
+  elements["grid-align-items"].changeValue("center");
+  const demandingGridState = JSON.stringify(gridState);
+  check(context.testApi.generatedCSS() === modifiedGridCSS, "demanding Grid CSS remains exact before hardening round trips");
+  for (const generatorName of generatorNames) {
+    selectTestGenerator(generatorName);
+    checkActiveConsistency(generatorName, `demanding Grid route through ${generatorName}`);
+  }
+  selectTestGenerator("grid");
+  check(JSON.stringify(gridState) === demandingGridState, "demanding Grid state survives all four V4 generators");
+  check(context.testApi.generatedCSS() === modifiedGridCSS, "demanding Grid CSS survives all four V4 generators");
+  check(gridPreview.children.every((child) => !child.hidden), "demanding Grid restores all 96 visible items");
+  checkGridSynchronization("demanding Grid round trip");
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  check(clipboardCalls.at(-1) === modifiedGridCSS, "demanding Grid round-trip Copy remains exact");
+
+  elements["grid-columns"].input("1");
+  elements["grid-rows"].input("1");
+  elements["grid-column-gap"].input("0");
+  elements["grid-row-gap"].input("0");
+  elements["grid-justify-items"].changeValue("start");
+  elements["grid-align-items"].changeValue("end");
+  const minimumGridCSS = `.grid {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  grid-template-rows: repeat(1, 1fr);
+  column-gap: 0px;
+  row-gap: 0px;
+  justify-items: start;
+  align-items: end;
+}`;
+  const minimumGridState = JSON.stringify(gridState);
+  check(context.testApi.generatedCSS() === minimumGridCSS, "minimum Grid CSS is exact and ordered");
+  check(
+    gridPreview.children.filter((child) => !child.hidden).length === 1 &&
+      gridPreview.children.filter((child) => child.hidden).length === 95,
+    "minimum Grid shows one item and hides the remaining 95",
+  );
+  for (const generatorName of generatorNames) {
+    selectTestGenerator(generatorName);
+    checkActiveConsistency(generatorName, `minimum Grid route through ${generatorName}`);
+  }
+  selectTestGenerator("grid");
+  check(JSON.stringify(gridState) === minimumGridState, "minimum Grid state survives all four V4 generators");
+  check(context.testApi.generatedCSS() === minimumGridCSS, "minimum Grid CSS survives all four V4 generators");
+  checkGridSynchronization("minimum Grid round trip");
+  setClipboard(() => Promise.resolve());
+  await copyButton.click();
+  check(clipboardCalls.at(-1) === minimumGridCSS, "minimum Grid round-trip Copy remains exact");
+  check(
+    gridPreview.children.length === 96 &&
+      gridPreview.children.every((child, index) => child === originalGridChildren[index]),
+    "Grid hardening routes preserve all 96 node identities and order",
+  );
+
+  // Task 5: exercise the complete five-generator system as one application.
+  const allGeneratorNames = [...generatorNames, "grid"];
+  const expectedStateKeys = {
+    button: [
+      "fontSize", "verticalPadding", "horizontalPadding", "borderRadius",
+      "backgroundColor", "textColor", "borderWidth", "borderColor",
+    ],
+    card: [
+      "width", "padding", "borderRadius", "backgroundColor", "textColor",
+      "borderWidth", "borderColor",
+    ],
+    input: [
+      "fontSize", "verticalPadding", "horizontalPadding", "borderRadius",
+      "backgroundColor", "textColor", "borderWidth", "borderColor",
+      "focusBorderColor", "focusOutlineWidth", "focusOutlineColor", "focusOutlineOffset",
+    ],
+    flexbox: ["flexDirection", "justifyContent", "alignItems", "flexWrap", "gap"],
+    grid: ["columns", "rows", "columnGap", "rowGap", "justifyItems", "alignItems"],
+  };
+  const forbiddenStateKeys = [
+    "generatedCSS", "filename", "clipboardStatus", "previewWidth", "previewHeight",
+    "visibleCount", "itemCount", "children", "element", "node", "control",
+  ];
+
+  check(allGeneratorNames.length === 5, "Task 5 covers exactly five generators");
+  for (const generatorName of allGeneratorNames) {
+    const generatorState = rootState.generators[generatorName];
+    check(
+      JSON.stringify(Object.keys(generatorState)) === JSON.stringify(expectedStateKeys[generatorName]),
+      `${generatorName}: state has its exact ordered property shape`,
+    );
+    check(
+      forbiddenStateKeys.every((key) => !Object.prototype.hasOwnProperty.call(generatorState, key)),
+      `${generatorName}: state excludes derived output, DOM, and preview bookkeeping`,
+    );
+    check(
+      Object.values(generatorState).every((value) => typeof value === "number" || typeof value === "string"),
+      `${generatorName}: state contains only serializable primitive values`,
+    );
+  }
+  check(Object.keys(rootState.generators).length === 5, "state contains exactly five generator records");
+  check(
+    clipboardPairs.length + gridClipboardPairs.length === 20,
+    "the delayed clipboard transition matrix contains all twenty directed generator routes",
+  );
+  check(
+    (clipboardPairs.length + gridClipboardPairs.length) * 2 === 40,
+    "the delayed clipboard matrix covers forty success and failure outcomes",
+  );
+
+  selectTestGenerator("button");
+  elements["font-size"].input("20");
+  elements["vertical-padding"].input("18");
+  elements["horizontal-padding"].input("32");
+  elements["border-radius"].input("14");
+  elements["background-color"].input("#0f172a");
+  elements["text-color"].input("#f8fafc");
+  elements["border-width"].input("3");
+  elements["border-color"].input("#38bdf8");
+
+  selectTestGenerator("card");
+  elements["card-width"].input("480");
+  elements["card-padding"].input("32");
+  elements["card-border-radius"].input("20");
+  elements["card-background-color"].input("#f8fafc");
+  elements["card-text-color"].input("#0f172a");
+  elements["card-border-width"].input("2");
+  elements["card-border-color"].input("#64748b");
+
+  selectTestGenerator("input");
+  elements["input-font-size"].input("20");
+  elements["input-vertical-padding"].input("14");
+  elements["input-horizontal-padding"].input("20");
+  elements["input-border-radius"].input("10");
+  elements["input-background-color"].input("#f8fafc");
+  elements["input-text-color"].input("#0f172a");
+  elements["input-border-width"].input("2");
+  elements["input-border-color"].input("#64748b");
+  elements["input-focus-border-color"].input("#e11d48");
+  elements["input-focus-outline-width"].input("6");
+  elements["input-focus-outline-color"].input("#f59e0b");
+  elements["input-focus-outline-offset"].input("8");
+
+  selectTestGenerator("flexbox");
+  elements["flex-direction"].changeValue("column-reverse");
+  elements["justify-content"].changeValue("space-evenly");
+  elements["align-items"].changeValue("baseline");
+  elements["flex-wrap"].changeValue("wrap-reverse");
+  elements["flex-gap"].input("64");
+
+  selectTestGenerator("grid");
+  elements["grid-columns"].input("12");
+  elements["grid-rows"].input("8");
+  elements["grid-column-gap"].input("64");
+  elements["grid-row-gap"].input("64");
+  elements["grid-justify-items"].changeValue("end");
+  elements["grid-align-items"].changeValue("center");
+
+  const meaningfulStateSnapshots = Object.fromEntries(
+    allGeneratorNames.map((generatorName) => [
+      generatorName,
+      JSON.stringify(rootState.generators[generatorName]),
+    ]),
+  );
+  check(
+    new Set(Object.values(meaningfulStateSnapshots)).size === 5,
+    "all five generators hold distinct meaningful non-default states simultaneously",
+  );
+
+  const allDirectedTransitions = allGeneratorNames.flatMap((source) =>
+    allGeneratorNames.filter((destination) => destination !== source).map((destination) => ({ source, destination })),
+  );
+  check(allDirectedTransitions.length === 20, "all twenty ordered switch transitions are enumerated");
+  for (const { source, destination } of allDirectedTransitions) {
+    selectTestGenerator(source);
+    const sourceSnapshot = JSON.stringify(rootState.generators[source]);
+    selectTestGenerator(destination);
+    checkActiveConsistency(destination, `Task 5 ${source} to ${destination}`);
+    check(
+      JSON.stringify(rootState.generators[source]) === sourceSnapshot,
+      `${source} to ${destination}: source state is preserved`,
+    );
+    selectTestGenerator(source);
+    checkActiveConsistency(source, `Task 5 ${source} restored after ${destination}`);
+    check(
+      JSON.stringify(rootState.generators[source]) === sourceSnapshot,
+      `${source} to ${destination}: source state restores exactly`,
+    );
+  }
+
+  const cycleOrders = [
+    ["button", "card", "input", "flexbox", "grid"],
+    ["grid", "flexbox", "input", "card", "button"],
+    ["input", "grid", "button", "flexbox", "card"],
+  ];
+  cycleOrders.forEach((order, orderIndex) => {
+    for (let cycleIndex = 0; cycleIndex < 3; cycleIndex += 1) {
+      order.forEach((generatorName) => {
+        selectTestGenerator(generatorName);
+        checkActiveConsistency(generatorName, `Task 5 order ${orderIndex + 1} cycle ${cycleIndex + 1}`);
+        check(
+          JSON.stringify(rootState.generators[generatorName]) === meaningfulStateSnapshots[generatorName],
+          `${generatorName}: state survives order ${orderIndex + 1} cycle ${cycleIndex + 1}`,
+        );
+      });
+    }
+  });
+
+  let stabilizationEditIndex = 0;
+  function editDestination(generatorName) {
+    stabilizationEditIndex += 1;
+    const alternate = stabilizationEditIndex % 2 === 0;
+    if (generatorName === "button") elements["font-size"].input(alternate ? "21" : "20");
+    if (generatorName === "card") elements["card-width"].input(alternate ? "481" : "480");
+    if (generatorName === "input") elements["input-focus-outline-offset"].input(alternate ? "7" : "8");
+    if (generatorName === "flexbox") elements["flex-direction"].changeValue(alternate ? "row-reverse" : "column-reverse");
+    if (generatorName === "grid") elements["grid-justify-items"].changeValue(alternate ? "center" : "end");
+  }
+
+  for (const { source, destination } of allDirectedTransitions) {
+    selectTestGenerator(source);
+    const staleOperation = deferred();
+    setClipboard(() => staleOperation.promise);
+    const pendingCopy = copyButton.click();
+    selectTestGenerator(destination);
+    editDestination(destination);
+    const destinationCSS = context.testApi.generatedCSS();
+    staleOperation.resolve();
+    await pendingCopy;
+    check(copyStatus.textContent === "CSS ready to copy.", `${source} to edited ${destination}: stale result leaves ready status`);
+    check(context.testApi.generatedCSS() === destinationCSS, `${source} to edited ${destination}: destination CSS remains authoritative`);
+    checkActiveConsistency(destination, `${source} to edited ${destination} race`);
+  }
+
+  for (const generatorName of allGeneratorNames) {
+    selectTestGenerator(generatorName);
+    const successfulEditRace = deferred();
+    setClipboard(() => successfulEditRace.promise);
+    const pendingSuccess = copyButton.click();
+    editDestination(generatorName);
+    const editedSuccessCSS = context.testApi.generatedCSS();
+    successfulEditRace.resolve();
+    await pendingSuccess;
+    check(copyStatus.textContent === "CSS ready to copy.", `${generatorName}: same-generator stale success leaves ready status`);
+    check(context.testApi.generatedCSS() === editedSuccessCSS, `${generatorName}: same-generator success race preserves edited CSS`);
+
+    const failedEditRace = deferred();
+    fallbackResult = false;
+    setClipboard(() => failedEditRace.promise);
+    const pendingFailure = copyButton.click();
+    editDestination(generatorName);
+    const editedFailureCSS = context.testApi.generatedCSS();
+    failedEditRace.reject(new Error(`${generatorName} same-generator delayed failure`));
+    await pendingFailure;
+    check(copyStatus.textContent === "CSS ready to copy.", `${generatorName}: same-generator stale failure leaves ready status`);
+    check(context.testApi.generatedCSS() === editedFailureCSS, `${generatorName}: same-generator failure race preserves edited CSS`);
+    checkActiveConsistency(generatorName, `${generatorName} same-generator races`);
+  }
+
+  for (const generatorName of allGeneratorNames) {
+    selectTestGenerator(generatorName);
+
+    const olderSuccess = deferred();
+    const newerSuccess = deferred();
+    let attempt = 0;
+    setClipboard(() => (attempt++ === 0 ? olderSuccess.promise : newerSuccess.promise));
+    const firstSuccess = copyButton.click();
+    const secondSuccess = copyButton.click();
+    newerSuccess.resolve();
+    await secondSuccess;
+    olderSuccess.resolve();
+    await firstSuccess;
+    check(copyStatus.textContent === "CSS copied", `${generatorName}: newest success wins when two successes resolve out of order`);
+
+    const olderFailure = deferred();
+    const newerSuccessAfterFailure = deferred();
+    attempt = 0;
+    fallbackResult = false;
+    setClipboard(() => (attempt++ === 0 ? olderFailure.promise : newerSuccessAfterFailure.promise));
+    const firstFailure = copyButton.click();
+    const secondSuccessAfterFailure = copyButton.click();
+    newerSuccessAfterFailure.resolve();
+    await secondSuccessAfterFailure;
+    olderFailure.reject(new Error(`${generatorName} older failure`));
+    await firstFailure;
+    check(copyStatus.textContent === "CSS copied", `${generatorName}: an older failure cannot replace a newer success`);
+
+    const olderSuccessBeforeFailure = deferred();
+    const newerFailure = deferred();
+    attempt = 0;
+    fallbackResult = false;
+    setClipboard(() => (attempt++ === 0 ? olderSuccessBeforeFailure.promise : newerFailure.promise));
+    const firstOlderSuccess = copyButton.click();
+    const secondNewerFailure = copyButton.click();
+    newerFailure.reject(new Error(`${generatorName} newer failure`));
+    await secondNewerFailure;
+    olderSuccessBeforeFailure.resolve();
+    await firstOlderSuccess;
+    check(copyStatus.textContent === "Couldn't copy — select the CSS manually", `${generatorName}: newest failure wins over an older success`);
+  }
+
+  for (const generatorName of allGeneratorNames) {
+    selectTestGenerator(generatorName);
+    const exactCSS = context.testApi.generatedCSS();
+
+    navigator.clipboard = undefined;
+    fallbackResult = true;
+    copyButton.focused = false;
+    const missingApiWriteIndex = fallbackWrites.length;
+    await copyButton.click();
+    check(fallbackWrites[missingApiWriteIndex] === exactCSS, `${generatorName}: missing Clipboard API fallback writes exact CSS bytes`);
+    check(copyStatus.textContent === "CSS copied", `${generatorName}: successful missing-API fallback reports success`);
+    check(copyButton.focused, `${generatorName}: missing-API fallback restores Copy focus`);
+    check(temporaryElements.at(-1).removed, `${generatorName}: missing-API fallback removes its temporary textarea`);
+
+    fallbackResult = true;
+    copyButton.focused = false;
+    const rejectedApiWriteIndex = fallbackWrites.length;
+    setClipboard(() => Promise.reject(new Error(`${generatorName} clipboard denied`)));
+    await copyButton.click();
+    check(fallbackWrites[rejectedApiWriteIndex] === exactCSS, `${generatorName}: rejected Clipboard API fallback writes exact CSS bytes`);
+    check(copyStatus.textContent === "CSS copied", `${generatorName}: successful rejection fallback reports success`);
+    check(copyButton.focused, `${generatorName}: rejection fallback restores Copy focus`);
+    check(temporaryElements.at(-1).removed, `${generatorName}: rejection fallback removes its temporary textarea`);
+
+    navigator.clipboard = undefined;
+    fallbackResult = false;
+    copyButton.focused = false;
+    await copyButton.click();
+    check(copyStatus.textContent === "Couldn't copy — select the CSS manually", `${generatorName}: failed fallback reports truthful status`);
+    check(copyButton.focused, `${generatorName}: failed fallback still restores Copy focus`);
+    check(temporaryElements.at(-1).removed, `${generatorName}: failed fallback removes its temporary textarea`);
+  }
+
+  // Shared numeric semantics: fractional values survive where a control allows them,
+  // while Grid tracks remain integer-only and enum vocabularies remain isolated.
+  selectTestGenerator("button");
+  elements["font-size"].input("20.5");
+  check(buttonState.fontSize === 20.5, "Button preserves a valid fractional shared numeric value");
+  checkButtonSynchronization("Task 5 fractional Button");
+  selectTestGenerator("card");
+  elements["card-width"].input("480.5");
+  check(cardState.width === 480.5, "Card preserves a valid fractional shared numeric value");
+  checkCardSynchronization("Task 5 fractional Card");
+  selectTestGenerator("input");
+  elements["input-font-size"].input("20.5");
+  check(inputState.fontSize === 20.5, "Input preserves a valid fractional shared numeric value");
+  checkInputSynchronization("Task 5 fractional Input");
+  selectTestGenerator("flexbox");
+  elements["flex-gap"].input("63.5");
+  check(flexboxState.gap === 63.5, "Flexbox preserves a valid fractional shared numeric value");
+  checkFlexboxSynchronization("Task 5 fractional Flexbox");
+  selectTestGenerator("grid");
+  elements["grid-column-gap"].input("63.5");
+  elements["grid-row-gap"].input("62.5");
+  check(gridState.columnGap === 63.5 && gridState.rowGap === 62.5, "Grid gaps preserve valid fractional values");
+  const integerColumnsBeforeFraction = gridState.columns;
+  const integerRowsBeforeFraction = gridState.rows;
+  elements["grid-columns"].input("7.5");
+  elements["grid-rows"].input("4.5");
+  check(
+    gridState.columns === integerColumnsBeforeFraction && gridState.rows === integerRowsBeforeFraction,
+    "Grid track counts reject fractional values without corrupting prior state",
+  );
+  const gridJustifyBeforeForeignEnum = gridState.justifyItems;
+  elements["grid-justify-items"].changeValue("space-evenly");
+  check(gridState.justifyItems === gridJustifyBeforeForeignEnum, "Grid rejects a Flexbox-only enum token");
+  selectTestGenerator("flexbox");
+  const flexDirectionBeforeForeignEnum = flexboxState.flexDirection;
+  elements["flex-direction"].changeValue("start");
+  check(flexboxState.flexDirection === flexDirectionBeforeForeignEnum, "Flexbox rejects a Grid-only enum token");
+
+  const inputPreviewIdentity = document.querySelector(".generated-input");
+  for (let index = 0; index < 50; index += 1) {
+    selectTestGenerator(allGeneratorNames[index % allGeneratorNames.length]);
+  }
+  check(document.querySelector(".generated-input") === inputPreviewIdentity, "rapid switching preserves the Input preview node identity");
+  check(
+    flexboxPreview.children.every((child, index) => child === originalFlexboxChildren[index]),
+    "rapid switching preserves every Flexbox child node identity",
+  );
+  check(
+    gridPreview.children.every((child, index) => child === originalGridChildren[index]),
+    "rapid switching preserves all 96 Grid child node identities",
+  );
+
+  selectTestGenerator("grid");
+  for (let value = 1; value <= 12; value += 1) elements["grid-columns"].input(String(value));
+  for (let value = 1; value <= 8; value += 1) elements["grid-rows"].input(String(value));
+  for (let value = 0; value <= 64; value += 1) elements["grid-column-gap"].input(String(value));
+  for (let value = 64; value >= 0; value -= 1) elements["grid-row-gap"].input(String(value));
+  checkGridSynchronization("Task 5 rapid Grid edits");
+
   Object.entries(expectedListenerRegistrations).forEach(([eventType, elementIds]) => {
     elementIds.forEach((id) => {
       check(
@@ -1447,14 +2187,22 @@ async function run() {
   );
   const cardControlIds = markupInputIds.filter((id) => id.startsWith("card-"));
   const inputControlIds = markupInputIds.filter((id) => id.startsWith("input-"));
-  const flexboxControlIds = [...markupSelectIds, "flex-gap"];
-  check(markupInputIds.length === 33, "markup contains four radios, twenty-eight property inputs, and one preview input");
-  check(markupSelectIds.length === 4, "Flexbox shell contains exactly four native selects");
-  check(labelTargets.length === 37, "markup contains a label for every radio, property control, select, and preview input");
+  const flexboxControlIds = [
+    ...markupSelectIds.filter((id) => !id.startsWith("grid-")),
+    "flex-gap",
+  ];
+  const gridControlIds = [
+    ...markupInputIds.filter((id) => id.startsWith("grid-")),
+    ...markupSelectIds.filter((id) => id.startsWith("grid-")),
+  ];
+  check(markupInputIds.length === 38, "markup contains five radios, thirty-two property inputs, and one preview input");
+  check(markupSelectIds.length === 6, "markup contains four Flexbox and two Grid native selects");
+  check(labelTargets.length === 44, "markup contains a label for every radio, property control, select, and preview input");
   check(buttonControlIds.length === 8, "Button view retains exactly eight controls");
   check(cardControlIds.length === 7, "Card view contains exactly seven controls");
   check(inputControlIds.length === 12, "Input generator contains exactly twelve controls");
   check(flexboxControlIds.length === 5, "Flexbox contains exactly five controls");
+  check(gridControlIds.length === 6, "Grid shell contains exactly six property controls");
   check(markupInputIds.every((id) => labelTargets.includes(id)), "every control has an associated label");
   check(markupSelectIds.every((id) => labelTargets.includes(id)), "every Flexbox select has an associated label");
   check(
@@ -1462,8 +2210,9 @@ async function run() {
       /id="generator-button"[\s\S]*?type="radio"[\s\S]*?value="button"[\s\S]*?checked/.test(html) &&
       /id="generator-card"[\s\S]*?type="radio"[\s\S]*?value="card"/.test(html) &&
       /id="generator-input"[\s\S]*?type="radio"[\s\S]*?value="input"/.test(html) &&
-      /id="generator-flexbox"[\s\S]*?type="radio"[\s\S]*?value="flexbox"/.test(html),
-    "generator selector uses four labelled native radios with Button selected",
+      /id="generator-flexbox"[\s\S]*?type="radio"[\s\S]*?value="flexbox"/.test(html) &&
+      /id="generator-grid"[\s\S]*?type="radio"[\s\S]*?value="grid"/.test(html),
+    "generator selector uses five labelled native radios with Button selected",
   );
   check(
     cardControlIds.every((id) => {
@@ -1473,8 +2222,8 @@ async function run() {
     "all Card property controls are enabled",
   );
   check(
-    (html.match(/<input\b[^>]*\bname="generator"[^>]*>/g) || []).length === 4,
-    "markup contains exactly four generator radios",
+    (html.match(/<input\b[^>]*\bname="generator"[^>]*>/g) || []).length === 5,
+    "markup contains exactly five generator radios",
   );
   check(
     !/<input[^>]*id="generator-flexbox"[^>]*\bdisabled\b/.test(html),
@@ -1498,6 +2247,40 @@ async function run() {
     /<input[^>]*id="flex-gap"[^>]*type="range"[^>]*min="0"[^>]*max="64"[^>]*step="1"[^>]*value="16"/.test(html) &&
       /id="flex-gap-output"[^>]*>16px<\/output>/.test(html),
     "Flexbox Gap is one enabled 0–64 range with a 16px displayed default",
+  );
+  check(
+    gridControlIds.every((id) => {
+      const control = html.match(new RegExp(`<(?:input|select)[^>]*id="${id}"[^>]*>`))?.[0] || "";
+      return !/\bdisabled\b/.test(control);
+    }),
+    "all six Grid property controls are enabled",
+  );
+  check(
+    /<input[^>]*id="grid-columns"[^>]*type="range"[^>]*min="1"[^>]*max="12"[^>]*step="1"[^>]*value="3"/.test(html) &&
+      /id="grid-columns-output"[^>]*>3<\/output>/.test(html) &&
+      /<input[^>]*id="grid-rows"[^>]*type="range"[^>]*min="1"[^>]*max="8"[^>]*step="1"[^>]*value="2"/.test(html) &&
+      /id="grid-rows-output"[^>]*>2<\/output>/.test(html) &&
+      !/<input[^>]*id="grid-(?:columns|rows)"[^>]*\bdisabled\b/.test(html),
+    "Grid Columns and Rows expose exact enabled bounds and defaults",
+  );
+  check(
+    ["grid-column-gap", "grid-row-gap"].every((id) => {
+      const input = html.match(new RegExp(`<input[^>]*id="${id}"[^>]*>`))?.[0] || "";
+      return input.includes('type="range"') && input.includes('min="0"') && input.includes('max="64"') &&
+        input.includes('step="1"') && input.includes('value="16"') && !/\bdisabled\b/.test(input) &&
+        new RegExp(`id="${id}-output"[^>]*>16px<\\/output>`).test(html);
+    }),
+    "Grid gaps expose exact enabled bounds and 16px defaults",
+  );
+  check(
+    ["grid-justify-items", "grid-align-items"].every((id) => {
+      const selectMarkup = html.match(new RegExp(`<select[^>]*id="${id}"[^>]*>[\\s\\S]*?<\\/select>`))?.[0] || "";
+      const values = [...selectMarkup.matchAll(/<option value="([^"]+)"/g)].map((match) => match[1]);
+      return !/\bdisabled\b/.test(selectMarkup.match(/<select[^>]*>/)?.[0] || "") &&
+        JSON.stringify(values) === JSON.stringify(["stretch", "start", "center", "end"]) &&
+        /<option value="stretch" selected>stretch<\/option>/.test(selectMarkup);
+    }),
+    "Grid alignment selects expose the exact enabled options and stretch defaults",
   );
   check(
     inputBaseControlIds.every((id) => {
@@ -1556,6 +2339,27 @@ async function run() {
       /data-generator-preview="flexbox"[\s\S]*?aria-hidden="true"[\s\S]*?hidden/.test(html),
     "Flexbox controls and decorative preview start natively hidden",
   );
+  check(
+    html.includes('data-generator-controls="grid" hidden') &&
+      /data-generator-preview="grid"[\s\S]*?aria-hidden="true"[\s\S]*?tabindex="-1"[\s\S]*?hidden/.test(html),
+    "Grid controls and decorative preview start natively hidden",
+  );
+  check((html.match(/class="grid-item"/g) || []).length === 96, "Grid preview contains exactly 96 static items");
+  check(
+    (html.match(/class="grid-item" hidden/g) || []).length === 90 &&
+      /<div class="grid-item">1<\/div>\s*<div class="grid-item">2<\/div>\s*<div class="grid-item">3<\/div>\s*<div class="grid-item">4<\/div>\s*<div class="grid-item">5<\/div>\s*<div class="grid-item">6<\/div>\s*<div class="grid-item" hidden>7<\/div>/.test(html),
+    "Grid preview initially shows six items and hides the remaining ninety",
+  );
+  const gridPreviewMarkup = html.match(
+    /<div\s+class="generated-grid"[\s\S]*?data-generator-preview="grid"[\s\S]*?<div class="grid-item" hidden>96<\/div>\s*<\/div>/,
+  )?.[0] || "";
+  check(
+    gridPreviewMarkup.includes('aria-hidden="true"') &&
+      gridPreviewMarkup.includes('tabindex="-1"') &&
+      !/<(?:button|input|select|a)\b/.test(gridPreviewMarkup) &&
+      !/role="(?:grid|gridcell)"/.test(gridPreviewMarkup),
+    "Grid preview and all items remain decorative and outside sequential interaction",
+  );
   const flexboxPreviewMarkup = html.match(
     /<div\s+class="generated-flexbox"[\s\S]*?data-generator-preview="flexbox"[\s\S]*?<div class="flex-item">1<\/div>\s*<div class="flex-item">2<\/div>\s*<div class="flex-item">3<\/div>\s*<div class="flex-item">4<\/div>\s*<div class="flex-item">5<\/div>\s*<\/div>/,
   )?.[0] || "";
@@ -1588,9 +2392,9 @@ async function run() {
   check(css.includes(":focus-visible"), "focus-visible styling remains extracted");
   check(css.includes(".generator-input:focus-visible + label"), "generator focus is visibly styled");
   check(
-    /\.generator-options\s*\{[\s\S]*?grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/.test(css) &&
+    /\.generator-options\s*\{[\s\S]*?grid-template-columns:\s*repeat\(auto-fit, minmax\(64px, 1fr\)\)/.test(css) &&
       /\.generator-options label\s*\{[\s\S]*?padding:\s*7px 4px;/.test(css),
-    "selector layout accommodates four compact equal options",
+    "selector layout wraps five readable options in DOM order",
   );
   check(
     /select\s*\{[\s\S]*?width:\s*100%;[\s\S]*?border:\s*1px solid var\(--line-strong\);/.test(css) &&
@@ -1616,6 +2420,28 @@ async function run() {
   check(
     !/(previewFlexbox|flexboxPreview)\.(?:append|appendChild|prepend|replaceChildren|insertBefore|removeChild)|createElement\([^)]*flex/i.test(script),
     "Flexbox rendering never reconstructs preview children",
+  );
+  check(
+    /\.generated-grid\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\);[\s\S]*?grid-template-rows:\s*repeat\(2, minmax\(0, 1fr\)\);[\s\S]*?column-gap:\s*16px;[\s\S]*?row-gap:\s*16px;[\s\S]*?justify-items:\s*stretch;[\s\S]*?align-items:\s*stretch;/.test(css) &&
+      /width:\s*min\(480px, 100%\);[\s\S]*?max-width:\s*100%;[\s\S]*?min-width:\s*0;[\s\S]*?height:\s*384px;[\s\S]*?overflow:\s*auto;/.test(css),
+    "Grid preview presents the static 3 by 2 default with responsive containment",
+  );
+  const gridItemRule = css.match(/\.grid-item\s*\{([^}]*)\}/)?.[1] || "";
+  check(
+    /margin:\s*0;/.test(gridItemRule) &&
+      /min-width:\s*0;/.test(gridItemRule) &&
+      /min-height:\s*0;/.test(gridItemRule) &&
+      !/(?:^|;)\s*(?:width|height):/.test(gridItemRule),
+    "Grid preview items have no fixed dimensions or gap-distorting margins",
+  );
+  check(
+    !/(?:grid-auto-flow|grid-auto-columns|grid-auto-rows)/.test(script + css) &&
+      !/\.grid-item[^}]*\b(?:grid-column|grid-row)\s*:/.test(css),
+    "Grid preview uses no implicit-grid workaround or per-item placement",
+  );
+  check(
+    !/(getBoundingClientRect|ResizeObserver|MutationObserver|requestAnimationFrame|setInterval|setTimeout)/.test(script),
+    "runtime contains no JavaScript geometry simulation, observers, polling, timers, or animation loops",
   );
   check(
     /\.generated-input-preview\s*\{[\s\S]*?width:\s*min\(360px, 100%\)/.test(css),
@@ -1648,13 +2474,35 @@ async function run() {
   );
   check(!/(\beval\s*\(|\bFunction\s*\()/.test(script), "script has no dynamic code execution");
   check(
-    !/OUTPUT_PLACEHOLDER|generator coming in Task 3|CSS generation is coming in Task 3/.test(script + html),
-    "Task 2 placeholder and unavailable behavior are removed",
+    !/INPUT_OUTPUT_PLACEHOLDER|FLEXBOX_OUTPUT_PLACEHOLDER|Input generator coming in Task 3|Flexbox generator coming in Task 3/.test(script + html),
+    "released Input and Flexbox placeholder behavior remains removed",
   );
   check(
     !/generatorName === "flexbox"/.test(script) &&
-      !/FLEXBOX_OUTPUT_PLACEHOLDER|FLEXBOX_UNAVAILABLE_STATUS|copyButton\.disabled = true/.test(script),
+      !/FLEXBOX_OUTPUT_PLACEHOLDER|FLEXBOX_UNAVAILABLE_STATUS/.test(script),
     "functional Flexbox uses shared switching with no dead shell branch",
+  );
+  check(
+    !/GRID_OUTPUT_PLACEHOLDER|GRID_UNAVAILABLE_STATUS|Grid generator coming in Task 3|Grid CSS generation is coming in Task 3/.test(script + html) &&
+      !/generatorName === "grid"/.test(script),
+    "functional Grid has no Task 2 placeholder constants, wording, or switching branch",
+  );
+  check(
+    /grid:\s*\{\s*columns:\s*3,\s*rows:\s*2,\s*columnGap:\s*16,\s*rowGap:\s*16,\s*justifyItems:\s*"stretch",\s*alignItems:\s*"stretch",\s*\}/.test(script) &&
+      /grid:\s*\{[\s\S]*?numericControls:\s*gridNumericControls,[\s\S]*?enumControls:\s*gridEnumControls,[\s\S]*?renderPreview:\s*renderGridPreview,[\s\S]*?generateCSS:\s*generateGridCSS,[\s\S]*?outputFilename:\s*"grid\.css"/.test(script),
+    "Grid has exactly the required flat state and an ordinary generator definition",
+  );
+  check(
+    /getElementById\(["']grid-columns["']\)/.test(script) &&
+      /getElementById\(["']grid-align-items["']\)/.test(script) &&
+      /initializeGeneratorControls\(["']grid["']\)/.test(script) &&
+      !/(?:previewGrid|gridPreview)\.(?:append|appendChild|prepend|replaceChildren|insertBefore|removeChild)|createElement\([^)]*grid/i.test(script),
+    "Grid property controls use shared initialization and preview nodes are never created or rebuilt",
+  );
+  check(
+    /function normalizeNumber\(value, minimum, maximum, fallback, integer = false\)[\s\S]*?integer &&[\s\S]*?number >= minimum &&[\s\S]*?number <= maximum &&[\s\S]*?!Number\.isInteger\(number\)[\s\S]*?return fallback;[\s\S]*?return Math\.min\(maximum, Math\.max\(minimum, number\)\);/.test(script) &&
+      !/Math\.(?:round|floor|ceil|trunc)|parseInt/.test(script.match(/function normalizeNumber[\s\S]*?\n\}/)?.[0] || ""),
+    "shared numeric normalization adds only opt-in integer rejection without rounding",
   );
   check(
     /flexbox:\s*\{\s*flexDirection:\s*"row",\s*justifyContent:\s*"flex-start",\s*alignItems:\s*"stretch",\s*flexWrap:\s*"nowrap",\s*gap:\s*16,\s*\}/.test(script) &&
@@ -1672,8 +2520,9 @@ async function run() {
       /initializeGeneratorControls\(["']flexbox["']\)/.test(script),
     "Flexbox controls and six preview styles are wired through shared initialization",
   );
+  const flexboxStateSource = script.match(/flexbox:\s*\{\s*flexDirection:[\s\S]*?\n\s*\},\n\s*grid:/)?.[0] || "";
   check(
-    !/(displayControl|childState|children:\s*\[|itemCount|itemSize|alignContent|rowGap|columnGap|flexGrow|flexShrink|flexBasis|alignSelf)/.test(script),
+    !/(displayControl|childState|children:\s*\[|itemCount|itemSize|alignContent|rowGap|columnGap|flexGrow|flexShrink|flexBasis|alignSelf)/.test(flexboxStateSource),
     "Flexbox adds no Display control, child state, or out-of-scope property",
   );
   check(
@@ -1730,19 +2579,21 @@ async function run() {
   check(readme.includes("## Overview"), "README includes a current overview");
   check(readme.includes("## Current generators"), "README documents current generators");
   check(
-    readme.includes("### Button") && readme.includes("### Card") && readme.includes("### Input") && readme.includes("### Flexbox"),
-    "README documents all four generators",
+    ["Button", "Card", "Input", "Flexbox", "Grid"].every((name) => readme.includes(`### ${name}`)) &&
+      (readme.match(/^### /gm) || []).length === 5,
+    "README documents exactly the five released generators",
   );
   check(readme.includes("## Architecture"), "README explains the generator architecture");
   check(readme.includes("## Usage") && readme.includes("node tests/regression.cjs"), "README documents usage and tests");
-  check(readme.includes("**Pulsar V4 — Flexbox Layout**"), "README reports the final V4 release status");
+  check(readme.includes("**Pulsar V5 — Grid Layout**"), "README reports the final V5 release status");
   check(
     readme.includes("Eight controls") &&
       readme.includes("Seven controls") &&
       readme.includes("Eight Base controls") &&
       readme.includes("Four Focus controls") &&
-      readme.includes("Five container-level controls"),
-    "README states the released control scope for all four generators",
+      readme.includes("Five container-level controls") &&
+      readme.includes("Six container-level controls"),
+    "README states the released control scope for all five generators",
   );
   check(
     readme.includes("flex-grow") &&
@@ -1754,9 +2605,21 @@ async function run() {
     "README distinguishes Flexbox container output from unsupported child and content controls",
   );
   check(
+    readme.includes("explicit equal-fraction tracks") &&
+      readme.includes("row and column gaps remain independent") &&
+      readme.includes("static pool of 96 decorative items") &&
+      readme.includes("container-level Grid CSS only") &&
+      readme.includes("item placement") &&
+      readme.includes("minmax()") &&
+      readme.includes("auto-fit") &&
+      readme.includes("auto-fill") &&
+      readme.includes("responsive generated CSS"),
+    "README documents Grid container scope without claiming advanced Grid features",
+  );
+  check(
     readme.includes("## Accessibility and responsive behavior") &&
       readme.includes("labelled native controls") &&
-      readme.includes("stacks at narrower widths"),
+      readme.includes("stacks all panels on narrow screens"),
     "README documents accessibility and responsive behavior",
   );
   check(
@@ -1768,14 +2631,21 @@ async function run() {
     "README explains Input Base controls, Focus controls, native focus, and both output rules",
   );
   check(
-    !/Pulsar V1|Pulsar V2|V3 current release|Task [3456] (?:complete|pending)|Flexbox coming soon|future areas include an Input generator/.test(readme),
-    "README contains no stale pre-V4 or task-status claims",
+    !/Pulsar V1|Pulsar V2|Pulsar V3|Pulsar V4|Task [23456]|Flexbox coming soon|Grid (?:coming|is coming)|future (?:areas|directions) include (?:an? )?(?:Input|Grid) generator/i.test(readme),
+    "README contains no stale release, task-status, or future-Grid claims",
+  );
+  check(
+    readme.includes("Five independent in-session generator states") &&
+      readme.includes("Zero runtime dependencies and zero test dependencies") &&
+      readme.includes("No framework, package manager, or build step required") &&
+      readme.includes("does not persist settings"),
+    "README accurately documents independence, dependency/build status, and no persistence",
   );
   check(
     html.includes(
-      'content="Pulsar is a focused visual CSS generator for building Button, Card, Input, and Flexbox styles."',
+      'content="Pulsar is a focused visual CSS generator for Button, Card, Input, Flexbox, and Grid styles."',
     ),
-    "Page metadata identifies all four generators",
+    "Page metadata identifies all five generators",
   );
 
   if (failures.length > 0) {

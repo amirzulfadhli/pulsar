@@ -145,7 +145,7 @@ input[type="range"] {
 
 .generator-options {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -404,6 +404,42 @@ button:disabled {
 
 .flex-item:nth-child(4) {
   font-size: 12px;
+}
+
+.generated-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 16px;
+  justify-items: stretch;
+  align-items: stretch;
+  box-sizing: border-box;
+  width: min(480px, 100%);
+  max-width: 100%;
+  min-width: 0;
+  height: 384px;
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+
+.grid-item {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 10px;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  background: var(--surface);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 [hidden] {

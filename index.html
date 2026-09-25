@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Pulsar is a focused visual CSS generator for building Button, Card, Input, and Flexbox styles."
+      content="Pulsar is a focused visual CSS generator for Button, Card, Input, Flexbox, and Grid styles."
     />
     <title>Pulsar — Visual CSS Generator</title>
 
@@ -58,6 +58,14 @@
                 value="flexbox"
               />
               <label for="generator-flexbox">Flexbox</label>
+              <input
+                class="generator-input"
+                id="generator-grid"
+                name="generator"
+                type="radio"
+                value="grid"
+              />
+              <label for="generator-grid">Grid</label>
             </div>
           </fieldset>
 
@@ -306,6 +314,58 @@
               </div>
             </section>
           </div>
+
+          <div class="generator-controls" data-generator-controls="grid" hidden>
+            <section class="control-group" aria-labelledby="grid-layout-heading">
+              <h3 class="control-heading" id="grid-layout-heading">Layout</h3>
+              <div class="field">
+                <label for="grid-columns">Columns</label>
+                <output class="field-output" id="grid-columns-output" for="grid-columns">3</output>
+                <input id="grid-columns" name="gridColumns" type="range" min="1" max="12" step="1" value="3" />
+              </div>
+              <div class="field">
+                <label for="grid-rows">Rows</label>
+                <output class="field-output" id="grid-rows-output" for="grid-rows">2</output>
+                <input id="grid-rows" name="gridRows" type="range" min="1" max="8" step="1" value="2" />
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="grid-spacing-heading">
+              <h3 class="control-heading" id="grid-spacing-heading">Spacing</h3>
+              <div class="field">
+                <label for="grid-column-gap">Column gap</label>
+                <output class="field-output" id="grid-column-gap-output" for="grid-column-gap">16px</output>
+                <input id="grid-column-gap" name="gridColumnGap" type="range" min="0" max="64" step="1" value="16" />
+              </div>
+              <div class="field">
+                <label for="grid-row-gap">Row gap</label>
+                <output class="field-output" id="grid-row-gap-output" for="grid-row-gap">16px</output>
+                <input id="grid-row-gap" name="gridRowGap" type="range" min="0" max="64" step="1" value="16" />
+              </div>
+            </section>
+
+            <section class="control-group" aria-labelledby="grid-alignment-heading">
+              <h3 class="control-heading" id="grid-alignment-heading">Alignment</h3>
+              <div class="field">
+                <label for="grid-justify-items">Justify items</label>
+                <select id="grid-justify-items" name="gridJustifyItems">
+                  <option value="stretch" selected>stretch</option>
+                  <option value="start">start</option>
+                  <option value="center">center</option>
+                  <option value="end">end</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="grid-align-items">Align items</label>
+                <select id="grid-align-items" name="gridAlignItems">
+                  <option value="stretch" selected>stretch</option>
+                  <option value="start">start</option>
+                  <option value="center">center</option>
+                  <option value="end">end</option>
+                </select>
+              </div>
+            </section>
+          </div>
         </form>
       </aside>
 
@@ -345,6 +405,110 @@
             <div class="flex-item">3</div>
             <div class="flex-item">4</div>
             <div class="flex-item">5</div>
+          </div>
+          <div
+            class="generated-grid"
+            data-generator-preview="grid"
+            aria-hidden="true"
+            tabindex="-1"
+            hidden
+          >
+            <div class="grid-item">1</div>
+            <div class="grid-item">2</div>
+            <div class="grid-item">3</div>
+            <div class="grid-item">4</div>
+            <div class="grid-item">5</div>
+            <div class="grid-item">6</div>
+            <div class="grid-item" hidden>7</div>
+            <div class="grid-item" hidden>8</div>
+            <div class="grid-item" hidden>9</div>
+            <div class="grid-item" hidden>10</div>
+            <div class="grid-item" hidden>11</div>
+            <div class="grid-item" hidden>12</div>
+            <div class="grid-item" hidden>13</div>
+            <div class="grid-item" hidden>14</div>
+            <div class="grid-item" hidden>15</div>
+            <div class="grid-item" hidden>16</div>
+            <div class="grid-item" hidden>17</div>
+            <div class="grid-item" hidden>18</div>
+            <div class="grid-item" hidden>19</div>
+            <div class="grid-item" hidden>20</div>
+            <div class="grid-item" hidden>21</div>
+            <div class="grid-item" hidden>22</div>
+            <div class="grid-item" hidden>23</div>
+            <div class="grid-item" hidden>24</div>
+            <div class="grid-item" hidden>25</div>
+            <div class="grid-item" hidden>26</div>
+            <div class="grid-item" hidden>27</div>
+            <div class="grid-item" hidden>28</div>
+            <div class="grid-item" hidden>29</div>
+            <div class="grid-item" hidden>30</div>
+            <div class="grid-item" hidden>31</div>
+            <div class="grid-item" hidden>32</div>
+            <div class="grid-item" hidden>33</div>
+            <div class="grid-item" hidden>34</div>
+            <div class="grid-item" hidden>35</div>
+            <div class="grid-item" hidden>36</div>
+            <div class="grid-item" hidden>37</div>
+            <div class="grid-item" hidden>38</div>
+            <div class="grid-item" hidden>39</div>
+            <div class="grid-item" hidden>40</div>
+            <div class="grid-item" hidden>41</div>
+            <div class="grid-item" hidden>42</div>
+            <div class="grid-item" hidden>43</div>
+            <div class="grid-item" hidden>44</div>
+            <div class="grid-item" hidden>45</div>
+            <div class="grid-item" hidden>46</div>
+            <div class="grid-item" hidden>47</div>
+            <div class="grid-item" hidden>48</div>
+            <div class="grid-item" hidden>49</div>
+            <div class="grid-item" hidden>50</div>
+            <div class="grid-item" hidden>51</div>
+            <div class="grid-item" hidden>52</div>
+            <div class="grid-item" hidden>53</div>
+            <div class="grid-item" hidden>54</div>
+            <div class="grid-item" hidden>55</div>
+            <div class="grid-item" hidden>56</div>
+            <div class="grid-item" hidden>57</div>
+            <div class="grid-item" hidden>58</div>
+            <div class="grid-item" hidden>59</div>
+            <div class="grid-item" hidden>60</div>
+            <div class="grid-item" hidden>61</div>
+            <div class="grid-item" hidden>62</div>
+            <div class="grid-item" hidden>63</div>
+            <div class="grid-item" hidden>64</div>
+            <div class="grid-item" hidden>65</div>
+            <div class="grid-item" hidden>66</div>
+            <div class="grid-item" hidden>67</div>
+            <div class="grid-item" hidden>68</div>
+            <div class="grid-item" hidden>69</div>
+            <div class="grid-item" hidden>70</div>
+            <div class="grid-item" hidden>71</div>
+            <div class="grid-item" hidden>72</div>
+            <div class="grid-item" hidden>73</div>
+            <div class="grid-item" hidden>74</div>
+            <div class="grid-item" hidden>75</div>
+            <div class="grid-item" hidden>76</div>
+            <div class="grid-item" hidden>77</div>
+            <div class="grid-item" hidden>78</div>
+            <div class="grid-item" hidden>79</div>
+            <div class="grid-item" hidden>80</div>
+            <div class="grid-item" hidden>81</div>
+            <div class="grid-item" hidden>82</div>
+            <div class="grid-item" hidden>83</div>
+            <div class="grid-item" hidden>84</div>
+            <div class="grid-item" hidden>85</div>
+            <div class="grid-item" hidden>86</div>
+            <div class="grid-item" hidden>87</div>
+            <div class="grid-item" hidden>88</div>
+            <div class="grid-item" hidden>89</div>
+            <div class="grid-item" hidden>90</div>
+            <div class="grid-item" hidden>91</div>
+            <div class="grid-item" hidden>92</div>
+            <div class="grid-item" hidden>93</div>
+            <div class="grid-item" hidden>94</div>
+            <div class="grid-item" hidden>95</div>
+            <div class="grid-item" hidden>96</div>
           </div>
         </div>
 

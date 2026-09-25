@@ -41,6 +41,14 @@ const state = {
       flexWrap: "nowrap",
       gap: 16,
     },
+    grid: {
+      columns: 3,
+      rows: 2,
+      columnGap: 16,
+      rowGap: 16,
+      justifyItems: "stretch",
+      alignItems: "stretch",
+    },
   },
 };
 
@@ -237,10 +245,57 @@ const flexboxNumericControls = {
   },
 };
 
+const gridNumericControls = {
+  columns: {
+    input: document.getElementById("grid-columns"),
+    output: document.getElementById("grid-columns-output"),
+    min: 1,
+    max: 12,
+    step: 1,
+    integer: true,
+    unit: "",
+  },
+  rows: {
+    input: document.getElementById("grid-rows"),
+    output: document.getElementById("grid-rows-output"),
+    min: 1,
+    max: 8,
+    step: 1,
+    integer: true,
+    unit: "",
+  },
+  columnGap: {
+    input: document.getElementById("grid-column-gap"),
+    output: document.getElementById("grid-column-gap-output"),
+    min: 0,
+    max: 64,
+    step: 1,
+  },
+  rowGap: {
+    input: document.getElementById("grid-row-gap"),
+    output: document.getElementById("grid-row-gap-output"),
+    min: 0,
+    max: 64,
+    step: 1,
+  },
+};
+
+const gridEnumControls = {
+  justifyItems: {
+    input: document.getElementById("grid-justify-items"),
+    allowedValues: ["stretch", "start", "center", "end"],
+  },
+  alignItems: {
+    input: document.getElementById("grid-align-items"),
+    allowedValues: ["stretch", "start", "center", "end"],
+  },
+};
+
 const previewButton = document.querySelector(".generated-button");
 const previewCard = document.querySelector(".generated-card");
 const previewInput = document.querySelector(".generated-input");
 const previewFlexbox = document.querySelector(".generated-flexbox");
+const previewGrid = document.querySelector(".generated-grid");
 const generatedCode = document.getElementById("generated-css");
 const outputFilename = document.querySelector(".output-toolbar-label");
 const copyButton = document.getElementById("copy-css");
@@ -256,7 +311,7 @@ const generatorPreviewViews = document.querySelectorAll(
 let generatedCSS = "";
 let latestCopyAttempt = 0;
 
-function normalizeNumber(value, minimum, maximum, fallback) {
+function normalizeNumber(value, minimum, maximum, fallback, integer = false) {
   if (value === "" || value === null || value === undefined) {
     return fallback;
   }
@@ -264,6 +319,15 @@ function normalizeNumber(value, minimum, maximum, fallback) {
   const number = Number(value);
 
   if (!Number.isFinite(number)) {
+    return fallback;
+  }
+
+  if (
+    integer &&
+    number >= minimum &&
+    number <= maximum &&
+    !Number.isInteger(number)
+  ) {
     return fallback;
   }
 
@@ -381,6 +445,33 @@ function generateFlexboxCSS(flexboxState) {
 }`;
 }
 
+function renderGridPreview(gridState) {
+  previewGrid.style.display = "grid";
+  previewGrid.style.gridTemplateColumns = `repeat(${gridState.columns}, 1fr)`;
+  previewGrid.style.gridTemplateRows = `repeat(${gridState.rows}, 1fr)`;
+  previewGrid.style.columnGap = `${gridState.columnGap}px`;
+  previewGrid.style.rowGap = `${gridState.rowGap}px`;
+  previewGrid.style.justifyItems = gridState.justifyItems;
+  previewGrid.style.alignItems = gridState.alignItems;
+
+  const visibleCount = gridState.columns * gridState.rows;
+  Array.from(previewGrid.children).forEach((item, index) => {
+    item.hidden = index >= visibleCount;
+  });
+}
+
+function generateGridCSS(gridState) {
+  return `.grid {
+  display: grid;
+  grid-template-columns: repeat(${gridState.columns}, 1fr);
+  grid-template-rows: repeat(${gridState.rows}, 1fr);
+  column-gap: ${gridState.columnGap}px;
+  row-gap: ${gridState.rowGap}px;
+  justify-items: ${gridState.justifyItems};
+  align-items: ${gridState.alignItems};
+}`;
+}
+
 const generatorDefinitions = {
   button: {
     numericControls: buttonNumericControls,
@@ -410,6 +501,13 @@ const generatorDefinitions = {
     generateCSS: generateFlexboxCSS,
     outputFilename: "flexbox.css",
   },
+  grid: {
+    numericControls: gridNumericControls,
+    enumControls: gridEnumControls,
+    renderPreview: renderGridPreview,
+    generateCSS: generateGridCSS,
+    outputFilename: "grid.css",
+  },
 };
 
 function renderActive() {
@@ -423,7 +521,7 @@ function renderActive() {
   definition.renderPreview(generatorState);
 
   Object.entries(definition.numericControls ?? {}).forEach(([property, control]) => {
-    control.output.textContent = `${generatorState[property]}px`;
+    control.output.textContent = `${generatorState[property]}${control.unit ?? "px"}`;
   });
 
   Object.entries(definition.colorControls ?? {}).forEach(([property, control]) => {
@@ -488,6 +586,7 @@ function initializeGeneratorControls(generatorName) {
         control.min,
         control.max,
         generatorState[property],
+        control.integer,
       );
 
       generatorState[property] = normalizedValue;
@@ -587,6 +686,7 @@ initializeGeneratorControls("button");
 initializeGeneratorControls("card");
 initializeGeneratorControls("input");
 initializeGeneratorControls("flexbox");
+initializeGeneratorControls("grid");
 initializeGeneratorSelector();
 switchGenerator("button");
 copyButton.addEventListener("click", copyCurrentCSS);
